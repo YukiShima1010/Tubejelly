@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  tubejelly:
+    build: .
+    container_name: tubejelly-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    volumes:
+      # ホストのJellyfinの音楽ディレクトリをコンテナの/musicにマウント
+      # 【重要】以下の path/to/your/jellyfin/music/library:/music:ro をホストマシンの実際のパスに変更してください
+      - path/to/your/jellyfin/music/library:/music:ro
+    networks:
+      - tubejelly-network
+    # リソース制限（オプション）
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  tubejelly-network:
+    driver: bridge
