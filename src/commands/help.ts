@@ -3,6 +3,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 export const data = {
   name: 'help',
   description: 'TubeJelly Botの使い方を表示',
+  dm_permission: true,
 };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {

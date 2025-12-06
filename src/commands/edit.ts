@@ -8,6 +8,7 @@ const JELLYFIN_MUSIC_PATH = process.env.JELLYFIN_MUSIC_PATH || '/music';
 export const data = {
   name: 'edit',
   description: '曲のメタデータを編集',
+  dm_permission: true,
   options: [
     {
       name: 'index',

@@ -6,6 +6,7 @@ import chalk from 'chalk';
 export const data = {
   name: 'delete',
   description: '曲を削除',
+  dm_permission: true,
   options: [
     {
       name: 'index',

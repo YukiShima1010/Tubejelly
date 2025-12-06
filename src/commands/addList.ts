@@ -6,6 +6,7 @@ import chalk from 'chalk';
 export const data = {
   name: 'add_list',
   description: 'YouTubeプレイリストを一括ダウンロード',
+  dm_permission: true,
   options: [
     {
       name: 'url',

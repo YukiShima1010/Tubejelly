@@ -5,6 +5,7 @@ import chalk from 'chalk';
 export const data = {
   name: 'list',
   description: '音楽ライブラリ内のすべての曲を表示',
+  dm_permission: true,
 };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {

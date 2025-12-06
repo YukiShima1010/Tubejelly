@@ -5,6 +5,7 @@ import chalk from 'chalk';
 export const data = {
   name: 'add',
   description: 'YouTube動画をMP3としてダウンロード',
+  dm_permission: true,
   options: [
     {
       name: 'url',
