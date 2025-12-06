@@ -1,0 +1,61 @@
+import type { ChatInputCommandInteraction } from 'discord.js';
+import { getMusicFileByIndex } from '../utils/fileManager.js';
+import { promises as fs } from 'fs';
+import chalk from 'chalk';
+
+export const data = {
+  name: 'delete',
+  description: '曲を削除',
+  options: [
+    {
+      name: 'index',
+      type: 4, // INTEGER
+      description: '削除する曲の番号（/listで確認）',
+      required: true,
+    },
+  ],
+};
+
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const index = interaction.options.getInteger('index', true);
+
+  await interaction.deferReply();
+
+  try {
+    console.log(chalk.blue(`🗑️ 削除開始: インデックス=${index}`));
+
+    // ファイルを取得
+    const file = await getMusicFileByIndex(index);
+
+    if (!file) {
+      await interaction.editReply(
+        `❌ **エラー**\n番号 ${index} の曲が見つかりませんでした。\n` +
+          `\`/list\` コマンドで曲の一覧を確認してください。`
+      );
+      return;
+    }
+
+    // ファイルを削除
+    await fs.unlink(file.path);
+
+    const metadata = [];
+    if (file.title) metadata.push(`🎵 ${file.title}`);
+    if (file.artist) metadata.push(`👤 ${file.artist}`);
+    if (file.album) metadata.push(`💿 ${file.album}`);
+
+    await interaction.editReply(
+      `✅ **削除完了**\n\n` +
+        `📁 ${file.filename}\n` +
+        (metadata.length > 0 ? metadata.join(' | ') : '') +
+        `\n\nこの曲はライブラリから削除されました。`
+    );
+
+    console.log(chalk.green(`✓ 削除完了: ${file.filename}`));
+  } catch (error) {
+    console.error(chalk.red('✗ 削除エラー:'), error);
+    await interaction.editReply(
+      `❌ **エラー**\n` +
+        `削除に失敗しました: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
