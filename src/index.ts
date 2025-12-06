@@ -70,8 +70,40 @@ async function checkYtDlp(): Promise<boolean> {
 async function ensureJellyfinDir(): Promise<void> {
   try {
     await fs.access(JELLYFIN_MUSIC_PATH);
-  } catch {
-    await fs.mkdir(JELLYFIN_MUSIC_PATH, { recursive: true });
+    // ディレクトリが存在する場合は何もしない
+    console.log(chalk.green(`✓ Jellyfinディレクトリにアクセス可能: ${JELLYFIN_MUSIC_PATH}`));
+  } catch (error) {
+    // ディレクトリが存在しない場合のみ作成を試みる
+    if (error instanceof Error && error.message.includes('ENOENT')) {
+      try {
+        await fs.mkdir(JELLYFIN_MUSIC_PATH, { recursive: true });
+        console.log(chalk.green(`✓ Jellyfinディレクトリを作成: ${JELLYFIN_MUSIC_PATH}`));
+      } catch {
+        // 作成に失敗した場合は警告を出すが、エラーにしない
+        console.warn(
+          chalk.yellow(
+            `⚠️ Jellyfinディレクトリの作成に失敗しました: ${JELLYFIN_MUSIC_PATH}`
+          )
+        );
+        console.warn(
+          chalk.yellow(
+            `   このディレクトリが既に存在し、適切にマウントされていることを確認してください。`
+          )
+        );
+      }
+    } else {
+      // ENOENT以外のエラー（権限問題など）は警告を出すが、エラーにしない
+      console.warn(
+        chalk.yellow(
+          `⚠️ Jellyfinディレクトリへのアクセスに問題があります: ${JELLYFIN_MUSIC_PATH}`
+        )
+      );
+      console.warn(
+        chalk.yellow(
+          `   このディレクトリが存在し、コンテナが書き込み権限を持つことを確認してください。`
+        )
+      );
+    }
   }
 }
 
@@ -227,6 +259,9 @@ async function downloadAsMP3(
       'mp3',
       '--audio-quality',
       '0', // 最高品質
+      '--embed-metadata', // メタデータを埋め込む
+      '--add-metadata', // 追加のメタデータを追加
+      '--embed-thumbnail', // サムネイルを埋め込む（可能な場合）
       '--output',
       outputPath.replace('.mp3', '.%(ext)s'),
       '--no-playlist',

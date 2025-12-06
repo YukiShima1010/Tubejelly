@@ -10,9 +10,9 @@ services:
     environment:
       - NODE_ENV=production
     volumes:
-      # ホストのJellyfinの音楽ディレクトリをコンテナの/musicにマウント
-      # 【重要】以下の path/to/your/jellyfin/music/library:/music:ro をホストマシンの実際のパスに変更してください
-      - path/to/your/jellyfin/music/library:/music:ro
+      # ホストの Jellyfin 音楽ディレクトリをコンテナの /music にマウント
+      # 【重要】以下の /home/yukishima1010/jellyfin/media/music をあなたの実際のパスに変更してください
+      - /home/yukishima1010/jellyfin/media/music:/music
     networks:
       - tubejelly-network
     # リソース制限（オプション）

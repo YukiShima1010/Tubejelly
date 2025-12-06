@@ -13,3 +13,4 @@ dist
 .vscode
 eslint.config.js
 setup.sh
+tubejelly.code-workspace
