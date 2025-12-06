@@ -6,6 +6,7 @@ import {
   Routes,
   ActivityType,
   Collection,
+  Partials,
 } from 'discord.js';
 import { promises as fs } from 'fs';
 import dotenv from 'dotenv';
@@ -29,7 +30,12 @@ if (!DISCORD_TOKEN) {
 
 // Discordクライアントの初期化
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
+  ],
+  partials: [Partials.Channel], // DMチャンネルのキャッシュを有効化
 });
 
 // コマンドコレクション
