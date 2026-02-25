@@ -151,7 +151,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   try {
     console.log(
-      chalk.blue(`📨 コマンド実行: /${interaction.commandName} (ユーザー: ${interaction.user.tag})`)
+      chalk.blue(
+        `📨 コマンド実行: /${interaction.commandName} (ユーザー: ${interaction.user.tag}, ID: ${interaction.user.id})`
+      )
     );
     await command.execute(interaction);
   } catch (error) {
