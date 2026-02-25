@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { loadUserConfig } from './utils/userConfig.js';
 
 dotenv.config();
 
@@ -21,7 +22,6 @@ const __dirname = dirname(__filename);
 
 // 環境変数
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const JELLYFIN_MUSIC_PATH = process.env.JELLYFIN_MUSIC_PATH || '/music';
 
 if (!DISCORD_TOKEN) {
   console.error(chalk.red('❌ DISCORD_TOKEN が設定されていません'));
@@ -50,35 +50,30 @@ interface Command {
 
 const commands = new Collection<string, Command>();
 
-// Jellyfinディレクトリの確認
-async function ensureJellyfinDir(): Promise<void> {
-  try {
-    await fs.access(JELLYFIN_MUSIC_PATH);
-    console.log(chalk.green(`✓ Jellyfinディレクトリにアクセス可能: ${JELLYFIN_MUSIC_PATH}`));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('ENOENT')) {
-      try {
-        await fs.mkdir(JELLYFIN_MUSIC_PATH, { recursive: true });
-        console.log(chalk.green(`✓ Jellyfinディレクトリを作成: ${JELLYFIN_MUSIC_PATH}`));
-      } catch {
-        console.warn(
-          chalk.yellow(`⚠️ Jellyfinディレクトリの作成に失敗しました: ${JELLYFIN_MUSIC_PATH}`)
-        );
+// ユーザーディレクトリの確認
+async function ensureUserDirs(): Promise<void> {
+  const config = await loadUserConfig();
+  for (const [userId, musicPath] of Object.entries(config)) {
+    try {
+      await fs.access(musicPath);
+      console.log(chalk.green(`✓ ユーザー ${userId} のディレクトリにアクセス可能: ${musicPath}`));
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('ENOENT')) {
+        try {
+          await fs.mkdir(musicPath, { recursive: true });
+          console.log(chalk.green(`✓ ユーザー ${userId} のディレクトリを作成: ${musicPath}`));
+        } catch {
+          console.warn(
+            chalk.yellow(`⚠️ ユーザー ${userId} のディレクトリの作成に失敗しました: ${musicPath}`)
+          );
+        }
+      } else {
         console.warn(
           chalk.yellow(
-            `   このディレクトリが既に存在し、適切にマウントされていることを確認してください。`
+            `⚠️ ユーザー ${userId} のディレクトリへのアクセスに問題があります: ${musicPath}`
           )
         );
       }
-    } else {
-      console.warn(
-        chalk.yellow(`⚠️ Jellyfinディレクトリへのアクセスに問題があります: ${JELLYFIN_MUSIC_PATH}`)
-      );
-      console.warn(
-        chalk.yellow(
-          `   このディレクトリが存在し、コンテナが書き込み権限を持つことを確認してください。`
-        )
-      );
     }
   }
 }
@@ -127,13 +122,12 @@ async function registerCommands() {
 client.once(Events.ClientReady, async (c) => {
   console.log(chalk.green.bold(`\n✅ TubeJelly Bot が起動しました！`));
   console.log(chalk.cyan(`👤 ログイン: ${c.user.tag}`));
-  console.log(chalk.cyan(`🎵 音楽ディレクトリ: ${JELLYFIN_MUSIC_PATH}`));
 
   // ステータスを設定
   client.user?.setActivity('YouTube Music 🎵', { type: ActivityType.Listening });
 
-  // Jellyfinディレクトリの確認
-  await ensureJellyfinDir();
+  // ユーザーディレクトリの確認
+  await ensureUserDirs();
 
   // コマンドをロード
   await loadCommands();

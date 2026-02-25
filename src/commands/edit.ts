@@ -1,9 +1,8 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { getMusicFileByIndex } from '../utils/fileManager.js';
 import { setMetadataAndOrganize } from '../utils/metadata.js';
+import { getUserMusicPath } from '../utils/userConfig.js';
 import chalk from 'chalk';
-
-const JELLYFIN_MUSIC_PATH = process.env.JELLYFIN_MUSIC_PATH || '/music';
 
 export const data = {
   name: 'edit',
@@ -38,6 +37,17 @@ export const data = {
 };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const userId = interaction.user.id;
+  const musicPath = await getUserMusicPath(userId);
+
+  if (!musicPath) {
+    await interaction.reply({
+      content: '❌ あなたはこのBotの使用が許可されていません。管理者に連絡してください。',
+      ephemeral: true,
+    });
+    return;
+  }
+
   const index = interaction.options.getInteger('index', true);
   const newTitle = interaction.options.getString('title') || undefined;
   const newArtist = interaction.options.getString('artist') || undefined;
@@ -58,7 +68,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     console.log(chalk.blue(`✏️ メタデータ編集開始: インデックス=${index}`));
 
     // ファイルを取得
-    const file = await getMusicFileByIndex(index);
+    const file = await getMusicFileByIndex(index, musicPath);
 
     if (!file) {
       await interaction.editReply(
@@ -76,7 +86,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     };
 
     // メタデータを更新してファイルを整理
-    const result = await setMetadataAndOrganize(file.path, metadata, JELLYFIN_MUSIC_PATH);
+    const result = await setMetadataAndOrganize(file.path, metadata, musicPath);
 
     if (!result.success) {
       await interaction.editReply(

@@ -3,8 +3,6 @@ import path from 'path';
 import NodeID3 from 'node-id3';
 import type { MusicFileInfo, MusicMetadata } from '../types.js';
 
-const JELLYFIN_MUSIC_PATH = process.env.JELLYFIN_MUSIC_PATH || '/music';
-
 /**
  * ファイル名のサニタイズ
  */
@@ -67,7 +65,7 @@ export function formatDuration(seconds: number): string {
 /**
  * 音楽ディレクトリ内のすべてのMP3ファイルを取得
  */
-export async function getAllMusicFiles(): Promise<MusicFileInfo[]> {
+export async function getAllMusicFiles(basePath: string): Promise<MusicFileInfo[]> {
   const files: MusicFileInfo[] = [];
 
   async function scanDirectory(dirPath: string): Promise<void> {
@@ -111,7 +109,7 @@ export async function getAllMusicFiles(): Promise<MusicFileInfo[]> {
     }
   }
 
-  await scanDirectory(JELLYFIN_MUSIC_PATH);
+  await scanDirectory(basePath);
 
   // ファイル名でソートしてインデックスを設定
   files.sort((a, b) => a.filename.localeCompare(b.filename));
@@ -125,9 +123,12 @@ export async function getAllMusicFiles(): Promise<MusicFileInfo[]> {
 /**
  * インデックスから音楽ファイルを取得
  */
-export async function getMusicFileByIndex(index: number): Promise<MusicFileInfo | null> {
-  const files = await getAllMusicFiles();
-  return files.find(f => f.index === index) || null;
+export async function getMusicFileByIndex(
+  index: number,
+  basePath: string
+): Promise<MusicFileInfo | null> {
+  const files = await getAllMusicFiles(basePath);
+  return files.find((f) => f.index === index) || null;
 }
 
 /**
@@ -139,11 +140,4 @@ export async function ensureDirectory(dirPath: string): Promise<void> {
   } catch {
     await fs.mkdir(dirPath, { recursive: true });
   }
-}
-
-/**
- * Jellyfinディレクトリのパスを取得
- */
-export function getJellyfinMusicPath(): string {
-  return JELLYFIN_MUSIC_PATH;
 }

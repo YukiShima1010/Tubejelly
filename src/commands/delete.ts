@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { getMusicFileByIndex } from '../utils/fileManager.js';
+import { getUserMusicPath } from '../utils/userConfig.js';
 import { promises as fs } from 'fs';
 import chalk from 'chalk';
 
@@ -18,6 +19,17 @@ export const data = {
 };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const userId = interaction.user.id;
+  const musicPath = await getUserMusicPath(userId);
+
+  if (!musicPath) {
+    await interaction.reply({
+      content: '❌ あなたはこのBotの使用が許可されていません。管理者に連絡してください。',
+      ephemeral: true,
+    });
+    return;
+  }
+
   const index = interaction.options.getInteger('index', true);
 
   await interaction.deferReply();
@@ -26,7 +38,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     console.log(chalk.blue(`🗑️ 削除開始: インデックス=${index}`));
 
     // ファイルを取得
-    const file = await getMusicFileByIndex(index);
+    const file = await getMusicFileByIndex(index, musicPath);
 
     if (!file) {
       await interaction.editReply(

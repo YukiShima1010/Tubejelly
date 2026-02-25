@@ -7,8 +7,6 @@ import type { VideoInfo, PlaylistInfo, DownloadResult, BatchDownloadResult } fro
 import { checkFileExists, getFileSize, formatFileSize, formatDuration } from './fileManager.js';
 import { updateMetadata } from './metadata.js';
 
-const JELLYFIN_MUSIC_PATH = process.env.JELLYFIN_MUSIC_PATH || '/music';
-
 // YouTube URLのパターン
 export const YOUTUBE_URL_REGEX =
   /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -85,11 +83,15 @@ export async function downloadAsMP3(
   url: string,
   videoInfo: VideoInfo,
   message: Message,
+  basePath: string,
   customMetadata?: { title?: string; artist?: string; album?: string },
   progressPrefix = ''
 ): Promise<DownloadResult> {
   const sanitize = (str: string) =>
-    str.replace(/[/\\?%*:|"<>]/g, '-').replace(/\s+/g, ' ').trim();
+    str
+      .replace(/[/\\?%*:|"<>]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
 
   // メタデータが指定されている場合はそれを使用
   const finalTitle = customMetadata?.title || videoInfo.title;
@@ -100,7 +102,7 @@ export async function downloadAsMP3(
   let outputPath: string;
   if (finalAlbum && finalArtist) {
     // アーティスト/アルバム/曲名.mp3 の構造
-    const artistDir = path.join(JELLYFIN_MUSIC_PATH, sanitize(finalArtist));
+    const artistDir = path.join(basePath, sanitize(finalArtist));
     const albumDir = path.join(artistDir, sanitize(finalAlbum));
 
     // ディレクトリを作成
@@ -111,7 +113,7 @@ export async function downloadAsMP3(
   } else {
     // 従来の形式: アーティスト - 曲名.mp3
     const filename = `${sanitize(finalArtist)} - ${sanitize(finalTitle)}.mp3`;
-    outputPath = path.join(JELLYFIN_MUSIC_PATH, filename);
+    outputPath = path.join(basePath, filename);
   }
 
   // 重複チェック
@@ -217,9 +219,7 @@ export async function downloadAsMP3(
     };
   } catch (error) {
     await progressMsg.edit(
-      `${progressPrefix}❌ **${finalTitle}**\n` +
-        `👤 ${finalArtist}\n` +
-        `⚠️ ダウンロード失敗`
+      `${progressPrefix}❌ **${finalTitle}**\n` + `👤 ${finalArtist}\n` + `⚠️ ダウンロード失敗`
     );
     throw new Error(
       `ダウンロードエラー: ${error instanceof Error ? error.message : String(error)}`
@@ -233,7 +233,9 @@ export async function downloadAsMP3(
 export async function downloadPlaylist(
   playlistInfo: PlaylistInfo,
   message: Message,
-  customAlbum?: string
+  basePath: string,
+  customAlbum?: string,
+  customArtist?: string
 ): Promise<BatchDownloadResult> {
   const result: BatchDownloadResult = {
     successful: [],
@@ -251,14 +253,18 @@ export async function downloadPlaylist(
     try {
       const videoUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
 
-      // プレイリストの場合、カスタムアルバム名を使用
-      const metadata = customAlbum ? { album: customAlbum } : undefined;
+      // プレイリストの場合、カスタムアルバム名・アーティスト名を使用
+      const metadata: { album?: string; artist?: string } = {};
+      if (customAlbum) metadata.album = customAlbum;
+      if (customArtist) metadata.artist = customArtist;
+      const hasMetadata = Object.keys(metadata).length > 0;
 
       const downloadResult = await downloadAsMP3(
         videoUrl,
         video,
         message,
-        metadata,
+        basePath,
+        hasMetadata ? metadata : undefined,
         progressPrefix
       );
 

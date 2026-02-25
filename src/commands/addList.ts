@@ -1,6 +1,7 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { getPlaylistInfo, downloadPlaylist, YOUTUBE_PLAYLIST_REGEX } from '../utils/download.js';
 import { formatFileSize } from '../utils/fileManager.js';
+import { getUserMusicPath } from '../utils/userConfig.js';
 import chalk from 'chalk';
 
 export const data = {
@@ -13,6 +14,12 @@ export const data = {
       type: 3, // STRING
       description: 'YouTubeプレイリストのURL',
       required: true,
+    },
+    {
+      name: 'artist',
+      type: 3, // STRING
+      description: 'アーティスト名（省略可、すべての曲に適用されます）',
+      required: false,
     },
     {
       name: 'album',
@@ -30,7 +37,19 @@ export const data = {
 };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const userId = interaction.user.id;
+  const musicPath = await getUserMusicPath(userId);
+
+  if (!musicPath) {
+    await interaction.reply({
+      content: '❌ あなたはこのBotの使用が許可されていません。管理者に連絡してください。',
+      ephemeral: true,
+    });
+    return;
+  }
+
   const url = interaction.options.getString('url', true);
+  const customArtist = interaction.options.getString('artist') || undefined;
   const customAlbum = interaction.options.getString('album') || undefined;
   const maxVideos = interaction.options.getInteger('max') || undefined;
 
@@ -46,7 +65,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply();
 
   try {
-    console.log(chalk.blue(`📋 プレイリスト情報取得中: ${url}`));
+    console.log(chalk.blue(`📋 プレイリスト情報取得中: ${url} (ユーザー: ${userId})`));
 
     // プレイリスト情報を取得
     const playlistInfo = await getPlaylistInfo(url, maxVideos);
@@ -59,6 +78,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.editReply(
       `📋 **プレイリスト: ${playlistInfo.title}**\n` +
         `🎵 動画数: ${playlistInfo.videos.length}件\n` +
+        (customArtist ? `👤 アーティスト: ${customArtist}\n` : '') +
         (customAlbum ? `💿 アルバム: ${customAlbum}\n` : '') +
         `📥 ダウンロードを開始します...`
     );
@@ -77,7 +97,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     } as any;
 
     // 一括ダウンロード実行
-    const result = await downloadPlaylist(playlistInfo, mockMessage, customAlbum);
+    const result = await downloadPlaylist(
+      playlistInfo,
+      mockMessage,
+      musicPath,
+      customAlbum,
+      customArtist
+    );
 
     // 結果を集計
     const successCount = result.successful.length;

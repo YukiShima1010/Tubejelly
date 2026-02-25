@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { getVideoInfo, downloadAsMP3, YOUTUBE_URL_REGEX } from '../utils/download.js';
+import { getUserMusicPath } from '../utils/userConfig.js';
 import chalk from 'chalk';
 
 export const data = {
@@ -35,6 +36,17 @@ export const data = {
 };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const userId = interaction.user.id;
+  const musicPath = await getUserMusicPath(userId);
+
+  if (!musicPath) {
+    await interaction.reply({
+      content: '❌ あなたはこのBotの使用が許可されていません。管理者に連絡してください。',
+      ephemeral: true,
+    });
+    return;
+  }
+
   const url = interaction.options.getString('url', true);
   const customTitle = interaction.options.getString('title') || undefined;
   const customArtist = interaction.options.getString('artist') || undefined;
@@ -52,7 +64,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply();
 
   try {
-    console.log(chalk.blue(`📥 ダウンロード開始: ${url}`));
+    console.log(chalk.blue(`📥 ダウンロード開始: ${url} (ユーザー: ${userId})`));
 
     // 動画情報を取得
     const videoInfo = await getVideoInfo(url);
@@ -77,7 +89,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       },
     } as any;
 
-    const result = await downloadAsMP3(url, videoInfo, mockMessage, customMetadata);
+    const result = await downloadAsMP3(url, videoInfo, mockMessage, musicPath, customMetadata);
 
     if (result.skipped) {
       await interaction.editReply(

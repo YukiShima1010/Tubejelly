@@ -26,12 +26,13 @@ YouTube動画をMP3としてダウンロードし、Jellyfinの音楽ライブ�
 
 \`/add_list\` - YouTubeプレイリストを一括ダウンロード
   • \`url\`: プレイリストのURL（必須）
+  • \`artist\`: アーティスト名（省略可、全曲に適用）
   • \`album\`: アルバム名（省略可、全曲に適用）
   • \`max\`: 最大ダウンロード数（省略可）
 
   **例:**
   \`/add_list url:https://youtube.com/playlist?list=xxx\`
-  \`/add_list url:https://youtube.com/playlist?list=xxx album:ベストアルバム\`
+  \`/add_list url:https://youtube.com/playlist?list=xxx artist:歌手A album:ベストアルバム\`
 
 **📚 管理コマンド**
 
@@ -53,6 +54,20 @@ YouTube動画をMP3としてダウンロードし、Jellyfinの音楽ライブ�
   **例:**
   \`/delete index:3\`
 
+**🎤 アーティスト管理コマンド**
+
+\`/artists list\` - アーティスト一覧を表示
+  各アーティストの曲数を確認できます。
+
+\`/artists rename\` - アーティスト名を一括変更
+  • \`old\`: 現在のアーティスト名（必須）
+  • \`new\`: 新しいアーティスト名（必須）
+
+  **例:**
+  \`/artists rename old:チャンネル名 new:正しいアーティスト名\`
+
+  💡 YouTubeのチャンネル名がアーティスト名になっている場合に便利です。
+
 **ℹ️ その他**
 
 \`/help\` - このヘルプを表示
@@ -62,6 +77,7 @@ YouTube動画をMP3としてダウンロードし、Jellyfinの音楽ライブ�
 • ダウンロード済みの曲は自動的にスキップされます
 • メタデータを編集すると、ファイルが適切なフォルダ構造に移動します
   （アーティスト/アルバム/曲名.mp3）
+• このBotは登録済みユーザーのみ使用できます
 
 **🔗 リンク**
 Jellyfin Web UI: http://localhost:8096

@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { getAllMusicFiles, formatFileSize } from '../utils/fileManager.js';
+import { getUserMusicPath } from '../utils/userConfig.js';
 import chalk from 'chalk';
 
 export const data = {
@@ -9,12 +10,23 @@ export const data = {
 };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const userId = interaction.user.id;
+  const musicPath = await getUserMusicPath(userId);
+
+  if (!musicPath) {
+    await interaction.reply({
+      content: '❌ あなたはこのBotの使用が許可されていません。管理者に連絡してください。',
+      ephemeral: true,
+    });
+    return;
+  }
+
   await interaction.deferReply();
 
   try {
     console.log(chalk.blue('📋 音楽ファイル一覧取得中...'));
 
-    const files = await getAllMusicFiles();
+    const files = await getAllMusicFiles(musicPath);
 
     if (files.length === 0) {
       await interaction.editReply('📂 音楽ライブラリは空です。');
