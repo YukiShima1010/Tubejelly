@@ -11,7 +11,7 @@ RUN apk add --no-cache ffmpeg python3 py3-pip && \
 WORKDIR /app
 
 # パッケージファイルのコピー
-COPY package.json pnpm-lock.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml ./
 
 # 依存関係のインストール
 RUN pnpm install --frozen-lockfile --prod

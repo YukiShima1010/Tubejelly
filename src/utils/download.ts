@@ -2,16 +2,129 @@ import { execa } from 'execa';
 import { promises as fs } from 'fs';
 import { Buffer } from 'buffer';
 import path from 'path';
+import { URL } from 'url';
 import type { Message } from 'discord.js';
 import type { VideoInfo, PlaylistInfo, DownloadResult, BatchDownloadResult } from '../types.js';
 import { checkFileExists, getFileSize, formatFileSize, formatDuration } from './fileManager.js';
 import { updateMetadata } from './metadata.js';
 
 // YouTube URLのパターン
-export const YOUTUBE_URL_REGEX =
-  /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+export const YOUTUBE_URL_REGEX = /(?:youtube\.com|youtu\.be)\//i;
 export const YOUTUBE_PLAYLIST_REGEX =
-  /(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:playlist\?list=|watch\?.*&list=)([a-zA-Z0-9_-]+)/;
+  /(?:youtube\.com\/.+\?.*list=|youtube\.com\/playlist\?list=)/i;
+
+const YOUTUBE_VIDEO_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
+const YOUTUBE_PLAYLIST_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
+
+function ensureUrlProtocol(input: string): string {
+  const trimmed = input.trim();
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^(?:www\.)?(?:m\.)?(?:music\.)?(?:youtube\.com|youtu\.be)\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+
+  return trimmed;
+}
+
+function isYouTubeHost(hostname: string): boolean {
+  return (
+    hostname === 'youtu.be' ||
+    hostname === 'youtube.com' ||
+    hostname.endsWith('.youtube.com') ||
+    hostname === 'youtube-nocookie.com' ||
+    hostname.endsWith('.youtube-nocookie.com')
+  );
+}
+
+function extractVideoIdFromPath(pathname: string): string | null {
+  const parts = pathname.split('/').filter(Boolean);
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const [prefix, id] = parts;
+  if (['shorts', 'live', 'embed', 'v'].includes(prefix) && YOUTUBE_VIDEO_ID_REGEX.test(id)) {
+    return id;
+  }
+
+  return null;
+}
+
+export function extractYouTubeVideoId(input: string): string | null {
+  const trimmed = input.trim();
+  if (YOUTUBE_VIDEO_ID_REGEX.test(trimmed)) {
+    return trimmed;
+  }
+
+  const normalizedInput = ensureUrlProtocol(trimmed);
+
+  try {
+    const url = new URL(normalizedInput);
+    const hostname = url.hostname.toLowerCase();
+
+    if (!isYouTubeHost(hostname)) {
+      return null;
+    }
+
+    if (hostname === 'youtu.be') {
+      const id = url.pathname.split('/').filter(Boolean)[0] || '';
+      return YOUTUBE_VIDEO_ID_REGEX.test(id) ? id : null;
+    }
+
+    const videoId = url.searchParams.get('v');
+    if (videoId && YOUTUBE_VIDEO_ID_REGEX.test(videoId)) {
+      return videoId;
+    }
+
+    return extractVideoIdFromPath(url.pathname);
+  } catch {
+    const fallback = normalizedInput.match(
+      /(?:v=|youtu\.be\/|\/(?:shorts|live|embed|v)\/)([a-zA-Z0-9_-]{11})/i
+    );
+    return fallback ? fallback[1] : null;
+  }
+}
+
+export function normalizeYouTubeVideoUrl(input: string): string | null {
+  const videoId = extractYouTubeVideoId(input);
+  if (!videoId) {
+    return null;
+  }
+  return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+export function extractYouTubePlaylistId(input: string): string | null {
+  const normalizedInput = ensureUrlProtocol(input);
+
+  try {
+    const url = new URL(normalizedInput);
+    const hostname = url.hostname.toLowerCase();
+    if (!isYouTubeHost(hostname)) {
+      return null;
+    }
+
+    const listId = url.searchParams.get('list');
+    if (listId && YOUTUBE_PLAYLIST_ID_REGEX.test(listId)) {
+      return listId;
+    }
+  } catch {
+    const fallback = normalizedInput.match(/[?&]list=([a-zA-Z0-9_-]+)/i);
+    return fallback ? fallback[1] : null;
+  }
+
+  return null;
+}
+
+export function normalizeYouTubePlaylistUrl(input: string): string | null {
+  const listId = extractYouTubePlaylistId(input);
+  if (!listId) {
+    return null;
+  }
+  return `https://www.youtube.com/playlist?list=${listId}`;
+}
 
 /**
  * YouTube動画情報の取得
@@ -25,7 +138,7 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
       title: info.title || 'Unknown Title',
       author: info.uploader || info.channel || 'Unknown Author',
       duration: Math.floor(info.duration || 0),
-      videoId: info.id || url.split('v=')[1]?.substring(0, 11) || 'unknown',
+      videoId: info.id || extractYouTubeVideoId(url) || 'unknown',
     };
   } catch (error) {
     throw new Error(

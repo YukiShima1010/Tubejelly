@@ -22,7 +22,12 @@ YouTube動画をMP3としてダウンロードし、Jellyfinの音楽ライブ�
 
   **例:**
   \`/add url:https://youtube.com/watch?v=xxx\`
+  \`/add url:https://youtu.be/xxx\`
+  \`/add url:https://www.youtube.com/live/xxx\`
   \`/add url:https://youtube.com/watch?v=xxx title:素晴らしい曲 artist:歌手A album:アルバムB\`
+
+  💡 \`youtube.com/...\` と \`youtu.be/...\` のどちらも利用できます。
+  LiveアーカイブURL（\`/live/\`）にも対応しています。
 
 \`/add_list\` - YouTubeプレイリストを一括ダウンロード
   • \`url\`: プレイリストのURL（必須）

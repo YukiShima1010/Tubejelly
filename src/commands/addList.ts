@@ -1,5 +1,9 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { getPlaylistInfo, downloadPlaylist, YOUTUBE_PLAYLIST_REGEX } from '../utils/download.js';
+import {
+  getPlaylistInfo,
+  downloadPlaylist,
+  normalizeYouTubePlaylistUrl,
+} from '../utils/download.js';
 import { formatFileSize } from '../utils/fileManager.js';
 import { getUserMusicPath } from '../utils/userConfig.js';
 import chalk from 'chalk';
@@ -52,9 +56,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const customArtist = interaction.options.getString('artist') || undefined;
   const customAlbum = interaction.options.getString('album') || undefined;
   const maxVideos = interaction.options.getInteger('max') || undefined;
+  const normalizedUrl = normalizeYouTubePlaylistUrl(url);
 
   // URLバリデーション
-  if (!YOUTUBE_PLAYLIST_REGEX.test(url)) {
+  if (!normalizedUrl) {
     await interaction.reply({
       content: '❌ 無効なYouTubeプレイリストURLです。',
       ephemeral: true,
@@ -65,10 +70,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply();
 
   try {
-    console.log(chalk.blue(`📋 プレイリスト情報取得中: ${url} (ユーザー: ${userId})`));
+    console.log(chalk.blue(`📋 プレイリスト情報取得中: ${normalizedUrl} (ユーザー: ${userId})`));
 
     // プレイリスト情報を取得
-    const playlistInfo = await getPlaylistInfo(url, maxVideos);
+    const playlistInfo = await getPlaylistInfo(normalizedUrl, maxVideos);
 
     if (playlistInfo.videos.length === 0) {
       await interaction.editReply('❌ プレイリストに動画が見つかりませんでした。');

@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { getVideoInfo, downloadAsMP3, YOUTUBE_URL_REGEX } from '../utils/download.js';
+import { getVideoInfo, downloadAsMP3, normalizeYouTubeVideoUrl } from '../utils/download.js';
 import { getUserMusicPath } from '../utils/userConfig.js';
 import chalk from 'chalk';
 
@@ -51,11 +51,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const customTitle = interaction.options.getString('title') || undefined;
   const customArtist = interaction.options.getString('artist') || undefined;
   const customAlbum = interaction.options.getString('album') || undefined;
+  const normalizedUrl = normalizeYouTubeVideoUrl(url);
 
   // URLバリデーション
-  if (!YOUTUBE_URL_REGEX.test(url)) {
+  if (!normalizedUrl) {
     await interaction.reply({
-      content: '❌ 無効なYouTube URLです。',
+      content: '❌ 無効なYouTube動画URLです。',
       ephemeral: true,
     });
     return;
@@ -64,10 +65,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply();
 
   try {
-    console.log(chalk.blue(`📥 ダウンロード開始: ${url} (ユーザー: ${userId})`));
+    console.log(chalk.blue(`📥 ダウンロード開始: ${normalizedUrl} (ユーザー: ${userId})`));
 
     // 動画情報を取得
-    const videoInfo = await getVideoInfo(url);
+    const videoInfo = await getVideoInfo(normalizedUrl);
 
     // カスタムメタデータを構築
     const customMetadata = {
@@ -89,7 +90,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       },
     } as any;
 
-    const result = await downloadAsMP3(url, videoInfo, mockMessage, musicPath, customMetadata);
+    const result = await downloadAsMP3(
+      normalizedUrl,
+      videoInfo,
+      mockMessage,
+      musicPath,
+      customMetadata
+    );
 
     if (result.skipped) {
       await interaction.editReply(
