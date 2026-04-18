@@ -1,6 +1,6 @@
 # 🎵 TubeJelly
 
-Discord の DM で YouTube URL を送信すると、自動的に MP3 でダウンロードして Jellyfin の音楽ライブラリに保存する Discord Bot です。
+Discord の DM または LINE公式アカウントに YouTube URL を送信すると、自動的に MP3 でダウンロードして Jellyfin の音楽ライブラリに保存する Bot です。
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-22-green)](https://nodejs.org/)
@@ -14,6 +14,7 @@ Discord の DM で YouTube URL を送信すると、自動的に MP3 でダウ�
 | 機能                    | 説明                                |
 | ----------------------- | ----------------------------------- |
 | 🤖 **簡単操作**         | DM に YouTube URL を送るだけ        |
+| 💬 **LINE 対応**        | LINE公式アカウントからも受付可能    |
 | 🎵 **高品質 MP3**       | 320kbps の高品質でダウンロード      |
 | 📦 **自動保存**         | Jellyfin の音楽ライブラリに自動保存 |
 | 🎼 **プレイリスト対応** | 一括ダウンロード & 件数指定可能     |
@@ -45,6 +46,7 @@ Discord の DM で YouTube URL を送信すると、自動的に MP3 でダウ�
 
 - ✅ Docker & Docker Compose
 - ✅ Discord Bot Token
+- ✅ LINE Messaging API チャネル（任意）
 - ✅ Jellyfin の音楽ライブラリへのアクセス
 
 ### ローカル開発の場合
@@ -106,6 +108,9 @@ nano .env
 
 ```env
 DISCORD_TOKEN=your_discord_bot_token_here
+LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token_here
+LINE_CHANNEL_SECRET=your_line_channel_secret_here
+LINE_WEBHOOK_PORT=3000
 # Docker使用時は必ず /music に設定してください
 JELLYFIN_MUSIC_PATH=/music
 ```
@@ -126,6 +131,25 @@ volumes:
 volumes:
   - /Users/username/Music/Jellyfin:/music
 ```
+
+#### ステップ C: LINE ユーザーIDと保存先の対応を設定
+
+LINE 連携を使う場合は、以下を作成して編集してください。
+
+```bash
+cp src/config/lineUsers.json.sample src/config/lineUsers.json
+```
+
+`src/config/lineUsers.json` の例:
+
+```json
+{
+  "Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "/music",
+  "Uyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy": "/ittu-music"
+}
+```
+
+LINE User ID ごとに保存先を分けられます。
 
 ### 4️⃣ Docker Compose で起動
 
@@ -414,10 +438,23 @@ tubejelly/
 
 ### 環境変数
 
-| 変数名                | 説明                 | デフォルト |
-| --------------------- | -------------------- | ---------- |
-| `DISCORD_TOKEN`       | Discord Bot の Token | (必須)     |
-| `JELLYFIN_MUSIC_PATH` | 音楽の保存先パス     | `/music`   |
+| 変数名                      | 説明                         | デフォルト |
+| --------------------------- | ---------------------------- | ---------- |
+| `DISCORD_TOKEN`             | Discord Bot の Token         | (必須)     |
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINEチャネルアクセストークン | (任意)     |
+| `LINE_CHANNEL_SECRET`       | LINEチャネルシークレット     | (任意)     |
+| `LINE_WEBHOOK_PORT`         | LINE Webhook待受ポート       | `3000`     |
+| `JELLYFIN_MUSIC_PATH`       | 音楽の保存先パス             | `/music`   |
+
+### LINE Webhook URL
+
+LINE 連携を有効化する場合は、Messaging API 側の Webhook URL を次に設定してください。
+
+```text
+https://あなたのドメイン/line/webhook
+```
+
+ローカル開発では ngrok 等で公開 URL を作成して設定してください。
 
 ### Docker Compose のカスタマイズ
 

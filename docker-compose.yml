@@ -7,11 +7,15 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - LINE_WEBHOOK_PORT=${LINE_WEBHOOK_PORT:-3330}
+    ports:
+      - "${LINE_WEBHOOK_PORT:-3330}:${LINE_WEBHOOK_PORT:-3330}"
     volumes:
       # ホストの Jellyfin 音楽ディレクトリをコンテナの /music にマウント
       # 【重要】以下の /home/yukishima1010/jellyfin/media/music をあなたの実際のパスに変更してください
       - /home/yukishima1010/jellyfin/media/music:/music
       - /home/yukishima1010/jellyfin/media/ittu-music:/ittu-music
+      - /home/yukishima1010/jellyfin/media/mmi-music:/mmi-music
     networks:
       - tubejelly-network
     # リソース制限（オプション）
@@ -23,6 +27,16 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: tubejelly-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    depends_on:
+      - tubejelly
+    networks:
+      - tubejelly-network
 
 networks:
   tubejelly-network:

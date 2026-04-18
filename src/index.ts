@@ -13,7 +13,8 @@ import dotenv from 'dotenv';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { loadUserConfig } from './utils/userConfig.js';
+import { loadLineUserConfig, loadUserConfig } from './utils/userConfig.js';
+import { startLineWebhookServer } from './line/webhook.js';
 
 dotenv.config();
 
@@ -22,6 +23,9 @@ const __dirname = dirname(__filename);
 
 // 環境変数
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
+const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+const LINE_WEBHOOK_PORT = Number(process.env.LINE_WEBHOOK_PORT ?? '3000');
 
 if (!DISCORD_TOKEN) {
   console.error(chalk.red('❌ DISCORD_TOKEN が設定されていません'));
@@ -52,8 +56,17 @@ const commands = new Collection<string, Command>();
 
 // ユーザーディレクトリの確認
 async function ensureUserDirs(): Promise<void> {
-  const config = await loadUserConfig();
-  for (const [userId, musicPath] of Object.entries(config)) {
+  const [discordConfig, lineConfig] = await Promise.all([loadUserConfig(), loadLineUserConfig()]);
+
+  const userEntries: Array<{ userId: string; musicPath: string }> = [
+    ...Object.entries(discordConfig).map(([userId, musicPath]) => ({ userId, musicPath })),
+    ...Object.entries(lineConfig).map(([userId, musicPath]) => ({
+      userId: `LINE:${userId}`,
+      musicPath,
+    })),
+  ];
+
+  for (const { userId, musicPath } of userEntries) {
     try {
       await fs.access(musicPath);
       console.log(chalk.green(`✓ ユーザー ${userId} のディレクトリにアクセス可能: ${musicPath}`));
@@ -134,6 +147,26 @@ client.once(Events.ClientReady, async (c) => {
 
   // スラッシュコマンドを登録
   await registerCommands();
+
+  if (LINE_CHANNEL_SECRET && LINE_CHANNEL_ACCESS_TOKEN) {
+    if (Number.isNaN(LINE_WEBHOOK_PORT) || LINE_WEBHOOK_PORT < 1 || LINE_WEBHOOK_PORT > 65535) {
+      console.warn(
+        chalk.yellow(`⚠️ LINE_WEBHOOK_PORT が不正です: ${process.env.LINE_WEBHOOK_PORT}`)
+      );
+    } else {
+      startLineWebhookServer({
+        channelSecret: LINE_CHANNEL_SECRET,
+        channelAccessToken: LINE_CHANNEL_ACCESS_TOKEN,
+        port: LINE_WEBHOOK_PORT,
+      });
+    }
+  } else {
+    console.log(
+      chalk.yellow(
+        '⚠️ LINE連携は無効です（LINE_CHANNEL_SECRET / LINE_CHANNEL_ACCESS_TOKEN が未設定）'
+      )
+    );
+  }
 
   console.log(chalk.green.bold(`\n🚀 準備完了！コマンドを受け付けています。\n`));
 });
