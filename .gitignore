@@ -1,9 +1,17 @@
+# cache
 node_modules/
 .pnpm-store/
-.env
 downloads/
 dist/
 *.log
-.DS_Store
-*.code-workspace
+
+# config
+.env
 users.json
+lineUsers.json
+
+# OS
+.DS_Store
+
+# VS Code
+*.code-workspace

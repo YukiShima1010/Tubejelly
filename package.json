@@ -29,11 +29,11 @@
   ],
   "author": "YukiShima1010",
   "dependencies": {
-    "chalk": "^5.6.2",
-    "discord.js": "^14.25.1",
-    "dotenv": "^17.3.1",
-    "execa": "^9.6.1",
-    "music-metadata": "^11.12.3",
+    "chalk": "^6.0.0",
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.4.2",
+    "execa": "^10.0.1",
+    "music-metadata": "^11.14.0",
     "node-id3": "^0.2.9"
   },
   "devDependencies": {
