@@ -264,6 +264,8 @@ export async function downloadAsMP3(
   try {
     // yt-dlpでダウンロード（MP3に直接変換）
     const ytDlpProcess = execa('yt-dlp', [
+      '--js-runtimes',
+      'deno',
       '--extract-audio',
       '--audio-format',
       'mp3',

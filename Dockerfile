@@ -1,11 +1,18 @@
-FROM node:22-alpine
+FROM node:22-bookworm-slim
 
 # pnpmのインストール
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# ffmpeg、Python、yt-dlpのインストール
-RUN apk add --no-cache ffmpeg python3 py3-pip && \
-    pip3 install --no-cache-dir --break-system-packages yt-dlp
+# ffmpeg、Python、yt-dlp、Denoのインストール
+RUN apt-get update && \
+    apt-get install -y ffmpeg python3 python3-pip curl unzip && \
+    pip3 install --no-cache-dir --break-system-packages yt-dlp && \
+    curl -L https://github.com/denoland/deno/releases/latest/download/deno-aarch64-unknown-linux-gnu.zip \
+      -o /tmp/deno.zip && \
+    unzip /tmp/deno.zip -d /usr/local/bin && \
+    chmod +x /usr/local/bin/deno && \
+    rm /tmp/deno.zip && \
+    rm -rf /var/lib/apt/lists/*
 
 # 作業ディレクトリ
 WORKDIR /app
@@ -30,8 +37,8 @@ RUN pnpm prune --prod
 RUN mkdir -p /app/downloads
 
 # 非rootユーザーで実行
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 && \
+RUN addgroup --gid 1001 nodejs && \
+    adduser --uid 1001 --gid 1001 --disabled-password --gecos "" nodejs && \
     chown -R nodejs:nodejs /app
 
 USER nodejs

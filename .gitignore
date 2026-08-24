@@ -4,6 +4,7 @@ node_modules/
 downloads/
 dist/
 *.log
+deno.lock
 
 # config
 .env
