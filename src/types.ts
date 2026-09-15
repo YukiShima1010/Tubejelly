@@ -6,6 +6,14 @@ export interface VideoInfo {
   videoId: string;
 }
 
+export interface UserConfigEntry {
+  NAME?: string;
+  DISCORD_USER_ID?: string;
+  LINE_USER_ID?: string;
+  MUSIC_DL_DIR: string;
+  VIDEO_DL_DIR: string;
+}
+
 // YouTubeプレイリスト情報
 export interface PlaylistInfo {
   title: string;
@@ -38,6 +46,13 @@ export interface MusicFileInfo {
   title?: string;
   artist?: string;
   album?: string;
+}
+
+export interface VideoFileInfo {
+  index: number;
+  filename: string;
+  path: string;
+  size: number;
 }
 
 // メタデータ

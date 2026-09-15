@@ -1,14 +1,13 @@
 {
   "name": "tubejelly",
-  "version": "1.1.0",
-  "description": "YouTube動画をMP3としてダウンロードし、Jellyfinの音楽ライブラリに保存するDiscordBot",
+  "version": "2.0.0",
+  "description": "YouTubeの音楽をJellyfinに自動で追加するDiscordBot/LINE公式アカウント",
   "main": "dist/index.js",
   "type": "module",
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=9.0.0"
   },
-  "packageManager": "pnpm@10.30.2",
   "scripts": {
     "dev": "tsx --watch src/index.ts",
     "build": "tsc && cp -r src/config dist/config",
@@ -27,22 +26,31 @@
     "jellyfin",
     "typescript"
   ],
-  "author": "YukiShima1010",
+  "author": {
+    "name": "YukiShima",
+    "url": "https://github.com/YukiShima1010"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YukiShima1010/tubejelly/tubejelly.git"
+  },
+  "license": "MIT",
+  "packageManager": "pnpm@12.4.1",
   "dependencies": {
     "chalk": "^6.0.0",
     "discord.js": "^14.27.0",
     "dotenv": "^17.4.2",
     "execa": "^10.0.1",
-    "music-metadata": "^11.14.0",
+    "music-metadata": "^11.15.0",
     "node-id3": "^0.2.9"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
-    "@types/node": "^24.12.0",
-    "@typescript-eslint/eslint-plugin": "^8.57.2",
-    "@typescript-eslint/parser": "^8.57.2",
-    "eslint": "^9.39.4",
-    "tsx": "^4.21.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.5.1",
+    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@typescript-eslint/parser": "^8.70.0",
+    "eslint": "^10.10.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3"
   }
 }

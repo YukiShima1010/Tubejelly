@@ -1,6 +1,11 @@
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { getVideoInfo, downloadAsMP3, normalizeYouTubeVideoUrl } from '../utils/download.js';
-import { getUserMusicPath } from '../utils/userConfig.js';
+import {
+  getVideoInfo,
+  downloadAsMP3,
+  downloadAsVideo,
+  normalizeYouTubeVideoUrl,
+} from '../utils/download.js';
+import { getUserMusicPath, getUserVideoPath } from '../utils/userConfig.js';
 import chalk from 'chalk';
 
 export const data = {
@@ -32,22 +37,30 @@ export const data = {
       description: 'アルバム名（省略可）',
       required: false,
     },
+    {
+      name: 'video',
+      type: 5, // BOOLEAN
+      description: 'ミュージックビデオとして保存する（初期値: いいえ）',
+      required: false,
+    },
   ],
 };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
-  const musicPath = await getUserMusicPath(userId);
+  const url = interaction.options.getString('url', true);
+  const downloadVideo = interaction.options.getBoolean('video') ?? false;
+  const downloadPath = downloadVideo
+    ? await getUserVideoPath(userId)
+    : await getUserMusicPath(userId);
 
-  if (!musicPath) {
+  if (!downloadPath) {
     await interaction.reply({
-      content: '❌ あなたはこのBotの使用が許可されていません。管理者に連絡してください。',
+      content: '❌ この種類のダウンロードが許可されていないか、保存先が未設定です。',
       ephemeral: true,
     });
     return;
   }
-
-  const url = interaction.options.getString('url', true);
   const customTitle = interaction.options.getString('title') || undefined;
   const customArtist = interaction.options.getString('artist') || undefined;
   const customAlbum = interaction.options.getString('album') || undefined;
@@ -90,13 +103,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       },
     } as any;
 
-    const result = await downloadAsMP3(
-      normalizedUrl,
-      videoInfo,
-      mockMessage,
-      musicPath,
-      customMetadata
-    );
+    const result = downloadVideo
+      ? await downloadAsVideo(normalizedUrl, videoInfo, mockMessage, downloadPath)
+      : await downloadAsMP3(
+          normalizedUrl,
+          videoInfo,
+          mockMessage,
+          downloadPath,
+          customMetadata
+        );
 
     if (result.skipped) {
       await interaction.editReply(

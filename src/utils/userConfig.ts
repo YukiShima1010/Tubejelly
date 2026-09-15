@@ -2,16 +2,14 @@ import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import chalk from 'chalk';
+import type { UserConfigEntry } from '../types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // ユーザー設定の型
-type UserConfig = Record<string, string>;
-
 // キャッシュ
-let cachedConfig: UserConfig | null = null;
-let cachedLineConfig: UserConfig | null = null;
+let cachedConfig: UserConfigEntry[] | null = null;
 
 /**
  * ユーザー設定ファイルのパス
@@ -23,14 +21,10 @@ function getUserConfigPath(): string {
 /**
  * LINEユーザー設定ファイルのパス
  */
-function getLineUserConfigPath(): string {
-  return join(__dirname, '..', 'config', 'lineUsers.json');
-}
-
 /**
  * ユーザー設定を読み込む
  */
-export async function loadUserConfig(): Promise<UserConfig> {
+export async function loadUserConfig(): Promise<UserConfigEntry[]> {
   if (cachedConfig) {
     return cachedConfig;
   }
@@ -38,47 +32,14 @@ export async function loadUserConfig(): Promise<UserConfig> {
   try {
     const configPath = getUserConfigPath();
     const raw = await fs.readFile(configPath, 'utf-8');
-    cachedConfig = JSON.parse(raw) as UserConfig;
-    console.log(chalk.green(`✓ ユーザー設定をロード: ${Object.keys(cachedConfig).length}ユーザー`));
+    const parsed = JSON.parse(raw) as UserConfigEntry[];
+    cachedConfig = Array.isArray(parsed) ? parsed : [];
+    console.log(chalk.green(`✓ ユーザー設定をロード: ${cachedConfig.length}ユーザー`));
     return cachedConfig;
   } catch (error) {
     console.error(chalk.red('❌ ユーザー設定ファイルの読み込みに失敗:'), error);
-    cachedConfig = {};
+    cachedConfig = [];
     return cachedConfig;
-  }
-}
-
-/**
- * LINEユーザー設定を読み込む
- */
-export async function loadLineUserConfig(): Promise<UserConfig> {
-  if (cachedLineConfig) {
-    return cachedLineConfig;
-  }
-
-  try {
-    const configPath = getLineUserConfigPath();
-    const raw = await fs.readFile(configPath, 'utf-8');
-    cachedLineConfig = JSON.parse(raw) as UserConfig;
-    console.log(
-      chalk.green(`✓ LINEユーザー設定をロード: ${Object.keys(cachedLineConfig).length}ユーザー`)
-    );
-    return cachedLineConfig;
-  } catch (error) {
-    const errorCode =
-      typeof error === 'object' && error !== null && 'code' in error
-        ? String((error as { code?: string }).code)
-        : undefined;
-
-    if (errorCode === 'ENOENT') {
-      console.warn(
-        chalk.yellow('⚠️ LINEユーザー設定ファイルが見つかりません: src/config/lineUsers.json')
-      );
-    } else {
-      console.error(chalk.red('❌ LINEユーザー設定ファイルの読み込みに失敗:'), error);
-    }
-    cachedLineConfig = {};
-    return cachedLineConfig;
   }
 }
 
@@ -87,7 +48,14 @@ export async function loadLineUserConfig(): Promise<UserConfig> {
  */
 export function clearUserConfigCache(): void {
   cachedConfig = null;
-  cachedLineConfig = null;
+}
+
+export async function getUserConfig(userId: string): Promise<UserConfigEntry | null> {
+  const config = await loadUserConfig();
+  return (
+    config.find((entry) => entry.DISCORD_USER_ID === userId || entry.LINE_USER_ID === userId) ??
+    null
+  );
 }
 
 /**
@@ -95,8 +63,7 @@ export function clearUserConfigCache(): void {
  * @returns ディレクトリパス。未登録ユーザーの場合は null
  */
 export async function getUserMusicPath(userId: string): Promise<string | null> {
-  const config = await loadUserConfig();
-  return config[userId] ?? null;
+  return (await getUserConfig(userId))?.MUSIC_DL_DIR ?? null;
 }
 
 /**
@@ -104,22 +71,27 @@ export async function getUserMusicPath(userId: string): Promise<string | null> {
  * @returns ディレクトリパス。未登録ユーザーの場合は null
  */
 export async function getLineUserMusicPath(userId: string): Promise<string | null> {
-  const config = await loadLineUserConfig();
-  return config[userId] ?? null;
+  return (await getUserConfig(userId))?.MUSIC_DL_DIR ?? null;
+}
+
+export async function getUserVideoPath(userId: string): Promise<string | null> {
+  return (await getUserConfig(userId))?.VIDEO_DL_DIR ?? null;
+}
+
+export async function getLineUserVideoPath(userId: string): Promise<string | null> {
+  return (await getUserConfig(userId))?.VIDEO_DL_DIR ?? null;
 }
 
 /**
  * 登録済みユーザーかどうかチェック
  */
 export async function isRegisteredUser(userId: string): Promise<boolean> {
-  const config = await loadUserConfig();
-  return userId in config;
+  return (await getUserConfig(userId)) !== null;
 }
 
 /**
  * LINE登録済みユーザーかどうかチェック
  */
 export async function isLineRegisteredUser(userId: string): Promise<boolean> {
-  const config = await loadLineUserConfig();
-  return userId in config;
+  return (await getUserConfig(userId)) !== null;
 }

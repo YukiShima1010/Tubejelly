@@ -8,14 +8,16 @@ import chalk from 'chalk';
 import type { Message } from 'discord.js';
 import {
   downloadAsMP3,
+  downloadAsVideo,
   downloadPlaylist,
+  downloadVideoPlaylist,
   getPlaylistInfo,
   getVideoInfo,
   normalizeYouTubePlaylistUrl,
   normalizeYouTubeVideoUrl,
 } from '../utils/download.js';
 import { formatFileSize, getAllMusicFiles, getMusicFileByIndex } from '../utils/fileManager.js';
-import { getLineUserMusicPath } from '../utils/userConfig.js';
+import { getLineUserMusicPath, getLineUserVideoPath } from '../utils/userConfig.js';
 import { organizeFile, setMetadataAndOrganize, updateMetadata } from '../utils/metadata.js';
 
 const LINE_REPLY_ENDPOINT = 'https://api.line.me/v2/bot/message/reply';
@@ -217,26 +219,11 @@ function extractYouTubeCandidates(text: string): string[] {
   return Array.from(candidates);
 }
 
-function createLineDownloadMessageAdapter(userId: string, messenger: LineMessenger): Message {
-  const toCompletionMessage = (content: string): string | null => {
-    if (content.includes('ダウンロード完了') || content.includes('ダウンロード失敗')) {
-      return content;
-    }
-
-    return null;
-  };
-
+function createLineDownloadMessageAdapter(): Message {
   const channel = {
-    send: async (content: string) => {
-      await safePushText(messenger, userId, content, '進捗開始');
-
+    send: async () => {
       return {
-        edit: async (nextContent: string) => {
-          const completionMessage = toCompletionMessage(nextContent);
-          if (completionMessage) {
-            await safePushText(messenger, userId, completionMessage, '進捗完了');
-          }
-        },
+        edit: async () => {},
       };
     },
   };
@@ -248,54 +235,53 @@ async function processLineDownload(
   userId: string,
   text: string,
   musicPath: string,
+  videoPath: string,
   messenger: LineMessenger,
   options?: LineDownloadOptions
 ): Promise<void> {
   const candidates = extractYouTubeCandidates(text);
+  const isVideo = text.includes('動画');
+  const targetPath = isVideo ? videoPath : musicPath;
 
   const playlistUrl = candidates
     .map((candidate) => normalizeYouTubePlaylistUrl(candidate))
     .find((url): url is string => Boolean(url));
 
   if (playlistUrl) {
-    await messenger.pushText(userId, `📋 プレイリストを解析中...\n${playlistUrl}`);
-
     const playlistInfo = await getPlaylistInfo(playlistUrl, options?.maxVideos);
     if (playlistInfo.videos.length === 0) {
-      await messenger.pushText(userId, '❌ プレイリストに動画が見つかりませんでした。');
-      return;
+      throw new Error('プレイリストに動画が見つかりませんでした。');
     }
 
-    await messenger.pushText(
-      userId,
-      `📋 プレイリスト処理開始\nタイトル: ${playlistInfo.title}\n件数: ${playlistInfo.videos.length}`
-    );
-
-    const messageAdapter = createLineDownloadMessageAdapter(userId, messenger);
-    const result = await downloadPlaylist(
-      playlistInfo,
-      messageAdapter,
-      musicPath,
-      options?.customAlbum,
-      options?.customArtist
-    );
+    const messageAdapter = createLineDownloadMessageAdapter();
+    const result = isVideo
+      ? await downloadVideoPlaylist(playlistInfo, messageAdapter, targetPath)
+      : await downloadPlaylist(
+          playlistInfo,
+          messageAdapter,
+          targetPath,
+          options?.customAlbum,
+          options?.customArtist
+        );
 
     const successCount = result.successful.length;
     const skippedCount = result.skipped.length;
     const failedCount = result.failed.length;
 
-    let summary = '📊 プレイリスト処理完了\n';
+    let summary = `${isVideo ? '🎬' : '🎵'} プレイリストのダウンロード${failedCount > 0 ? 'に失敗しました' : 'が完了しました'}\n`;
     summary += `✅ 成功: ${successCount}件\n`;
     summary += `⏭️ スキップ: ${skippedCount}件\n`;
     summary += `❌ 失敗: ${failedCount}件\n`;
     summary += `💾 合計サイズ: ${formatFileSize(result.totalSize)}`;
 
     if (failedCount > 0) {
-      const firstFailure = result.failed[0];
-      summary += `\n\n失敗例: ${firstFailure.video.title}`;
+      summary += '\n\n失敗内容:\n';
+      for (const failure of result.failed.slice(0, 5)) {
+        summary += `・${failure.video.title}: ${failure.error}\n`;
+      }
     }
 
-    await messenger.pushText(userId, summary);
+    await safePushText(messenger, userId, summary, 'ダウンロード完了');
     return;
   }
 
@@ -308,25 +294,31 @@ async function processLineDownload(
     return;
   }
 
-  await messenger.pushText(userId, `📥 動画を解析中...\n${videoUrl}`);
-
   const videoInfo = await getVideoInfo(videoUrl);
-  const messageAdapter = createLineDownloadMessageAdapter(userId, messenger);
-  const result = await downloadAsMP3(videoUrl, videoInfo, messageAdapter, musicPath, {
-    title: options?.customTitle,
-    artist: options?.customArtist,
-    album: options?.customAlbum,
-  });
+  const messageAdapter = createLineDownloadMessageAdapter();
+  const result = isVideo
+    ? await downloadAsVideo(videoUrl, videoInfo, messageAdapter, targetPath)
+    : await downloadAsMP3(videoUrl, videoInfo, messageAdapter, targetPath, {
+        title: options?.customTitle,
+        artist: options?.customArtist,
+        album: options?.customAlbum,
+      });
 
   if (result.skipped) {
-    await messenger.pushText(userId, `⏭️ 既存ファイルのためスキップ\n${result.filename}`);
-    return;
+    await safePushText(
+      messenger,
+      userId,
+      `⏭️ ダウンロードが完了しました（既存ファイルをスキップ）\n${result.filename}`,
+      'ダウンロード完了'
+    );
+  } else {
+    await safePushText(
+      messenger,
+      userId,
+      `✅ ダウンロードが完了しました\n${result.filename}\n💾 ${(result.size / 1024 / 1024).toFixed(2)} MB`,
+      'ダウンロード完了'
+    );
   }
-
-  await messenger.pushText(
-    userId,
-    `✅ ダウンロード完了\n${result.filename}\n💾 ${(result.size / 1024 / 1024).toFixed(2)} MB`
-  );
 }
 
 function parseKeyValueOptions(text: string): {
@@ -378,7 +370,8 @@ async function handleLineHelp(userId: string, messenger: LineMessenger): Promise
   const message = [
     '🎵 TubeJelly LINEコマンド',
     '',
-    '・URLだけ送信: 動画/ライブをダウンロード',
+    '・URLだけ送信: 音楽をダウンロード',
+    '・動画 URL: MusicVideoをMP4でダウンロード（最大1080p）',
     '・add URL [title=] [artist=] [album=]',
     '・add_list URL [artist=] [album=] [max=10]',
     '・list [page=1]',
@@ -635,6 +628,7 @@ async function handleLineCommand(
   userId: string,
   replyToken: string,
   musicPath: string,
+  videoPath: string,
   messenger: LineMessenger,
   rawText: string
 ): Promise<boolean> {
@@ -700,9 +694,16 @@ async function handleLineCommand(
       maxVideos: Number.isFinite(maxVideos) ? Math.max(1, Math.floor(maxVideos!)) : undefined,
     };
 
-    await runWithAck('📨 受け付けました。ダウンロードを開始します。', async () => {
+    await runWithAck('📨 受け付けました。', async () => {
       const textForDownload = parsed.name === 'add_list' ? rawText : rawText;
-      await processLineDownload(userId, textForDownload, musicPath, messenger, downloadOptions);
+      await processLineDownload(
+        userId,
+        textForDownload,
+        musicPath,
+        videoPath,
+        messenger,
+        downloadOptions
+      );
     });
     return true;
   }
@@ -746,7 +747,8 @@ async function handleLineEvent(event: LineWebhookEvent, messenger: LineMessenger
   }
 
   const musicPath = await getLineUserMusicPath(userId);
-  if (!musicPath) {
+  const videoPath = await getLineUserVideoPath(userId);
+  if (!musicPath || !videoPath) {
     await messenger.replyText(
       event.replyToken,
       '❌ このLINEアカウントは未登録です。管理者にLINE User IDの登録を依頼してください。'
@@ -761,6 +763,7 @@ async function handleLineEvent(event: LineWebhookEvent, messenger: LineMessenger
       userId,
       event.replyToken,
       musicPath,
+      videoPath,
       messenger,
       event.message.text
     );
@@ -781,10 +784,10 @@ async function handleLineEvent(event: LineWebhookEvent, messenger: LineMessenger
 
   await messenger.replyText(
     event.replyToken,
-    '📨 受け付けました。ダウンロードを開始します。進捗を順次通知します。'
+    '📨 受け付けました。'
   );
 
-  void processLineDownload(userId, event.message.text, musicPath, messenger).catch(
+  void processLineDownload(userId, event.message.text, musicPath, videoPath, messenger).catch(
     async (error) => {
       console.error(chalk.red('❌ LINEダウンロード処理エラー:'), error);
       await safePushText(

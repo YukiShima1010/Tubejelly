@@ -15,6 +15,7 @@ export const YOUTUBE_PLAYLIST_REGEX =
 
 const YOUTUBE_VIDEO_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
 const YOUTUBE_PLAYLIST_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
+const MAX_DOWNLOAD_TITLE_BYTES = 180;
 
 function ensureUrlProtocol(input: string): string {
   const trimmed = input.trim();
@@ -51,6 +52,34 @@ function extractVideoIdFromPath(pathname: string): string | null {
   }
 
   return null;
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  let result = '';
+
+  for (const character of value) {
+    if (Buffer.byteLength(result + character, 'utf8') > maxBytes) {
+      break;
+    }
+    result += character;
+  }
+
+  return result.trim();
+}
+
+export function createDownloadTitle(title: string, artist?: string): string {
+  const sanitizedTitle = title
+    .replace(/【[^】]*】|\[[^\]]*\]|\([^)]*\)|（[^）]*）/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const artistPrefix = artist
+    ? new RegExp(`^${artist.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*(?:[-–—|/:：／]\\s*)`, 'i')
+    : null;
+  const titleWithoutArtist = artistPrefix ? sanitizedTitle.replace(artistPrefix, '') : sanitizedTitle;
+  const result = titleWithoutArtist || sanitizedTitle || title.trim() || 'Unknown Title';
+
+  return truncateUtf8(result, MAX_DOWNLOAD_TITLE_BYTES) || 'Unknown Title';
 }
 
 export function extractYouTubeVideoId(input: string): string | null {
@@ -210,6 +239,7 @@ export async function downloadAsMP3(
   const finalTitle = customMetadata?.title || videoInfo.title;
   const finalArtist = customMetadata?.artist || videoInfo.author;
   const finalAlbum = customMetadata?.album;
+  const downloadTitle = createDownloadTitle(finalTitle, finalArtist);
 
   // ファイル名を構築
   let outputPath: string;
@@ -221,11 +251,10 @@ export async function downloadAsMP3(
     // ディレクトリを作成
     await fs.mkdir(albumDir, { recursive: true });
 
-    const filename = `${sanitize(finalTitle)}.mp3`;
+    const filename = `${sanitize(downloadTitle)}.mp3`;
     outputPath = path.join(albumDir, filename);
   } else {
-    // 従来の形式: アーティスト - 曲名.mp3
-    const filename = `${sanitize(finalArtist)} - ${sanitize(finalTitle)}.mp3`;
+    const filename = `${sanitize(downloadTitle)}.mp3`;
     outputPath = path.join(basePath, filename);
   }
 
@@ -342,6 +371,100 @@ export async function downloadAsMP3(
   }
 }
 
+export async function downloadAsVideo(
+  url: string,
+  videoInfo: VideoInfo,
+  message: Message,
+  basePath: string,
+  progressPrefix = ''
+): Promise<DownloadResult> {
+  const sanitize = (value: string) =>
+    value
+      .replace(/[/\\?%*:|"<>]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const title = createDownloadTitle(videoInfo.title, videoInfo.author);
+  const outputPath = path.join(basePath, `${sanitize(title)}.mp4`);
+
+  if (!message.channel || !('send' in message.channel)) {
+    throw new Error('メッセージの送信ができません');
+  }
+
+  if (await checkFileExists(outputPath)) {
+    const existingSize = await getFileSize(outputPath);
+    await message.channel.send(
+      `${progressPrefix}⏭️ スキップ（既に存在します）\n` + `📦 ${formatFileSize(existingSize)}`
+    );
+    return {
+      filename: path.basename(outputPath),
+      path: outputPath,
+      size: existingSize,
+      skipped: true,
+    };
+  }
+
+  const progressMsg = await message.channel.send(
+    `${progressPrefix}🎬 **${videoInfo.title}**\n` +
+      `👤 ${videoInfo.author} | ⏱️ ${formatDuration(videoInfo.duration)}\n` +
+      `📥 ダウンロード開始...`
+  );
+
+  try {
+    const ytDlpProcess = execa('yt-dlp', [
+      '--js-runtimes',
+      'deno',
+      '--format',
+      'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+      '--merge-output-format',
+      'mp4',
+      '--output',
+      outputPath,
+      '--no-playlist',
+      '--progress',
+      '--newline',
+      url,
+    ]);
+
+    let lastProgress = '';
+    ytDlpProcess.stdout?.on('data', (data: Buffer) => {
+      const output = data.toString();
+      const progressMatch = output.match(/(\d+\.?\d*)%/);
+
+      if (progressMatch && progressMatch[1] !== lastProgress) {
+        lastProgress = progressMatch[1];
+        const percent = parseFloat(progressMatch[1]);
+        if (percent % 20 < 1) {
+          const progressBar =
+            '█'.repeat(Math.floor(percent / 5)) + '░'.repeat(20 - Math.floor(percent / 5));
+          progressMsg
+            .edit(
+              `${progressPrefix}🎬 **${videoInfo.title}**\n` +
+                `📥 ダウンロード中: ${Math.floor(percent)}%\n` +
+                `[${progressBar}]`
+            )
+            .catch(() => {});
+        }
+      }
+    });
+
+    await ytDlpProcess;
+    await progressMsg.edit(`${progressPrefix}✅ **${videoInfo.title}**\n✨ ダウンロード完了！`);
+
+    const stats = await fs.stat(outputPath);
+    return {
+      filename: path.basename(outputPath),
+      path: outputPath,
+      size: stats.size,
+      skipped: false,
+    };
+  } catch (error) {
+    await progressMsg.edit(`${progressPrefix}❌ **${videoInfo.title}**\n⚠️ ダウンロード失敗`);
+    throw new Error(
+      `動画ダウンロードエラー: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
 /**
  * プレイリストの一括ダウンロード
  */
@@ -389,6 +512,46 @@ export async function downloadPlaylist(
         result.successful.push(downloadResult);
       }
 
+      result.totalSize += downloadResult.size;
+    } catch (error) {
+      result.failed.push({
+        video,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return result;
+}
+
+export async function downloadVideoPlaylist(
+  playlistInfo: PlaylistInfo,
+  message: Message,
+  basePath: string
+): Promise<BatchDownloadResult> {
+  const result: BatchDownloadResult = {
+    successful: [],
+    failed: [],
+    skipped: [],
+    totalSize: 0,
+  };
+
+  for (let i = 0; i < playlistInfo.videos.length; i++) {
+    const video = playlistInfo.videos[i];
+    try {
+      const downloadResult = await downloadAsVideo(
+        `https://www.youtube.com/watch?v=${video.videoId}`,
+        video,
+        message,
+        basePath,
+        `[${i + 1}/${playlistInfo.videos.length}] `
+      );
+
+      if (downloadResult.skipped) {
+        result.skipped.push(downloadResult);
+      } else {
+        result.successful.push(downloadResult);
+      }
       result.totalSize += downloadResult.size;
     } catch (error) {
       result.failed.push({

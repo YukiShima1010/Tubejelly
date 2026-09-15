@@ -2,10 +2,11 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import {
   getPlaylistInfo,
   downloadPlaylist,
+  downloadVideoPlaylist,
   normalizeYouTubePlaylistUrl,
 } from '../utils/download.js';
 import { formatFileSize } from '../utils/fileManager.js';
-import { getUserMusicPath } from '../utils/userConfig.js';
+import { getUserMusicPath, getUserVideoPath } from '../utils/userConfig.js';
 import chalk from 'chalk';
 
 export const data = {
@@ -37,22 +38,30 @@ export const data = {
       description: '最大ダウンロード数（省略可）',
       required: false,
     },
+    {
+      name: 'video',
+      type: 5, // BOOLEAN
+      description: 'ミュージックビデオとして保存する（初期値: いいえ）',
+      required: false,
+    },
   ],
 };
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
-  const musicPath = await getUserMusicPath(userId);
+  const url = interaction.options.getString('url', true);
+  const downloadVideo = interaction.options.getBoolean('video') ?? false;
+  const downloadPath = downloadVideo
+    ? await getUserVideoPath(userId)
+    : await getUserMusicPath(userId);
 
-  if (!musicPath) {
+  if (!downloadPath) {
     await interaction.reply({
-      content: '❌ あなたはこのBotの使用が許可されていません。管理者に連絡してください。',
+      content: '❌ この種類のダウンロードが許可されていないか、保存先が未設定です。',
       ephemeral: true,
     });
     return;
   }
-
-  const url = interaction.options.getString('url', true);
   const customArtist = interaction.options.getString('artist') || undefined;
   const customAlbum = interaction.options.getString('album') || undefined;
   const maxVideos = interaction.options.getInteger('max') || undefined;
@@ -102,13 +111,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     } as any;
 
     // 一括ダウンロード実行
-    const result = await downloadPlaylist(
-      playlistInfo,
-      mockMessage,
-      musicPath,
-      customAlbum,
-      customArtist
-    );
+    const result = downloadVideo
+      ? await downloadVideoPlaylist(playlistInfo, mockMessage, downloadPath)
+      : await downloadPlaylist(
+          playlistInfo,
+          mockMessage,
+          downloadPath,
+          customAlbum,
+          customArtist
+        );
 
     // 結果を集計
     const successCount = result.successful.length;

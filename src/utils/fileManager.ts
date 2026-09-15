@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import NodeID3 from 'node-id3';
-import type { MusicFileInfo, MusicMetadata } from '../types.js';
+import type { MusicFileInfo, MusicMetadata, VideoFileInfo } from '../types.js';
 
 /**
  * ファイル名のサニタイズ
@@ -129,6 +129,46 @@ export async function getMusicFileByIndex(
 ): Promise<MusicFileInfo | null> {
   const files = await getAllMusicFiles(basePath);
   return files.find((f) => f.index === index) || null;
+}
+
+export async function getAllVideoFiles(basePath: string): Promise<VideoFileInfo[]> {
+  const files: VideoFileInfo[] = [];
+
+  async function scanDirectory(dirPath: string): Promise<void> {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+          await scanDirectory(fullPath);
+        } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.mp4')) {
+          files.push({
+            index: 0,
+            filename: entry.name,
+            path: fullPath,
+            size: await getFileSize(fullPath),
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`動画ディレクトリスキャンエラー: ${dirPath}`, error);
+    }
+  }
+
+  await scanDirectory(basePath);
+  files.sort((a, b) => a.filename.localeCompare(b.filename));
+  files.forEach((file, index) => {
+    file.index = index + 1;
+  });
+  return files;
+}
+
+export async function getVideoFileByIndex(
+  index: number,
+  basePath: string
+): Promise<VideoFileInfo | null> {
+  const files = await getAllVideoFiles(basePath);
+  return files.find((file) => file.index === index) || null;
 }
 
 /**

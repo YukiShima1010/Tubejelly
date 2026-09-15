@@ -134,22 +134,24 @@ volumes:
 
 #### ステップ C: LINE ユーザーIDと保存先の対応を設定
 
-LINE 連携を使う場合は、以下を作成して編集してください。
+DiscordとLINEのユーザー設定は `src/config/users.json` に統合されています。
+`src/config/users.json.sample` を参考に、音楽とMusicVideoの保存先を設定してください。
 
-```bash
-cp src/config/lineUsers.json.sample src/config/lineUsers.json
-```
-
-`src/config/lineUsers.json` の例:
+`src/config/users.json` の例:
 
 ```json
-{
-  "Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "/music",
-  "Uyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy": "/ittu-music"
-}
+[
+  {
+    "NAME": "hoge",
+    "DISCORD_USER_ID": "000000",
+    "LINE_USER_ID": "xxxxxx",
+    "MUSIC_DL_DIR": "/music",
+    "VIDEO_DL_DIR": "/video"
+  }
+]
 ```
 
-LINE User ID ごとに保存先を分けられます。
+`MUSIC_DL_DIR` はMP3、`VIDEO_DL_DIR` はMP4の保存先です。MusicVideoは最大1080pで保存されます。
 
 ### 4️⃣ Docker Compose で起動
 
@@ -210,6 +212,16 @@ https://www.youtube.com/playlist?list=PLxxxxxxxxxxxxxx 5
 ```
 
 💡 スペースの後に数字を入れると、その件数だけダウンロードします
+
+### MusicVideo
+
+Discordでは `/video`、または `/add video:true` を使用します。プレイリストは
+`/add_list video:true` で処理できます。LINEでは本文に「動画」を含めてURLを送信します。
+
+```text
+動画 https://www.youtube.com/watch?v=xxxxxxxxxxx
+動画 https://www.youtube.com/playlist?list=xxxxxxxxxxx
+```
 
 ### ヘルプコマンド
 

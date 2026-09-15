@@ -7,14 +7,27 @@ import {
   ActivityType,
   Collection,
   Partials,
+  type ButtonInteraction,
 } from 'discord.js';
 import { promises as fs } from 'fs';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { loadLineUserConfig, loadUserConfig } from './utils/userConfig.js';
+import { loadUserConfig } from './utils/userConfig.js';
 import { startLineWebhookServer } from './line/webhook.js';
+import {
+  downloadAsMP3,
+  downloadAsVideo,
+  downloadPlaylist,
+  downloadVideoPlaylist,
+  getPlaylistInfo,
+  getVideoInfo,
+  normalizeYouTubePlaylistUrl,
+  normalizeYouTubeVideoUrl,
+} from './utils/download.js';
+import { getUserMusicPath, getUserVideoPath } from './utils/userConfig.js';
+import { getAllMusicFiles } from './utils/fileManager.js';
 
 dotenv.config();
 
@@ -37,6 +50,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
   ],
   partials: [Partials.Channel], // DMチャンネルのキャッシュを有効化
@@ -56,35 +70,29 @@ const commands = new Collection<string, Command>();
 
 // ユーザーディレクトリの確認
 async function ensureUserDirs(): Promise<void> {
-  const [discordConfig, lineConfig] = await Promise.all([loadUserConfig(), loadLineUserConfig()]);
+  const config = await loadUserConfig();
+  const userEntries = config.flatMap((entry) => [
+    { userId: entry.DISCORD_USER_ID ?? entry.NAME ?? 'unknown', path: entry.MUSIC_DL_DIR },
+    { userId: entry.DISCORD_USER_ID ?? entry.NAME ?? 'unknown', path: entry.VIDEO_DL_DIR },
+  ]);
 
-  const userEntries: Array<{ userId: string; musicPath: string }> = [
-    ...Object.entries(discordConfig).map(([userId, musicPath]) => ({ userId, musicPath })),
-    ...Object.entries(lineConfig).map(([userId, musicPath]) => ({
-      userId: `LINE:${userId}`,
-      musicPath,
-    })),
-  ];
-
-  for (const { userId, musicPath } of userEntries) {
+  for (const { userId, path } of userEntries) {
     try {
-      await fs.access(musicPath);
-      console.log(chalk.green(`✓ ユーザー ${userId} のディレクトリにアクセス可能: ${musicPath}`));
+      await fs.access(path);
+      console.log(chalk.green(`✓ ユーザー ${userId} のディレクトリにアクセス可能: ${path}`));
     } catch (error) {
       if (error instanceof Error && error.message.includes('ENOENT')) {
         try {
-          await fs.mkdir(musicPath, { recursive: true });
-          console.log(chalk.green(`✓ ユーザー ${userId} のディレクトリを作成: ${musicPath}`));
+          await fs.mkdir(path, { recursive: true });
+          console.log(chalk.green(`✓ ユーザー ${userId} のディレクトリを作成: ${path}`));
         } catch {
           console.warn(
-            chalk.yellow(`⚠️ ユーザー ${userId} のディレクトリの作成に失敗しました: ${musicPath}`)
+            chalk.yellow(`⚠️ ユーザー ${userId} のディレクトリの作成に失敗しました: ${path}`)
           );
         }
       } else {
         console.warn(
-          chalk.yellow(
-            `⚠️ ユーザー ${userId} のディレクトリへのアクセスに問題があります: ${musicPath}`
-          )
+          chalk.yellow(`⚠️ ユーザー ${userId} のディレクトリへのアクセスに問題があります: ${path}`)
         );
       }
     }
@@ -173,6 +181,12 @@ client.once(Events.ClientReady, async (c) => {
 
 // インタラクション（スラッシュコマンド）の処理
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isButton()) {
+    if (!interaction.customId.startsWith('artists_all:')) return;
+    await handleAllArtistsButton(interaction);
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const command = commands.get(interaction.commandName);
@@ -202,6 +216,101 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } else {
       await interaction.reply(errorMessage);
     }
+  }
+});
+
+async function handleAllArtistsButton(interaction: ButtonInteraction): Promise<void> {
+  const [, ownerId] = interaction.customId.split(':');
+  if (ownerId !== interaction.user.id) {
+    await interaction.reply({ content: '❌ このボタンは実行できません。', ephemeral: true });
+    return;
+  }
+
+  const musicPath = await getUserMusicPath(interaction.user.id);
+  if (!musicPath) {
+    await interaction.reply({ content: '❌ 音楽保存先が未設定です。', ephemeral: true });
+    return;
+  }
+
+  await interaction.deferUpdate();
+  const files = await getAllMusicFiles(musicPath);
+  const artistMap = new Map<string, number>();
+  for (const file of files) {
+    const artist = file.artist || 'Unknown Artist';
+    artistMap.set(artist, (artistMap.get(artist) || 0) + 1);
+  }
+
+  const sortedArtists = Array.from(artistMap.entries()).sort((a, b) => b[1] - a[1]);
+  const header = `🎤 アーティスト一覧 (全 ${sortedArtists.length} アーティスト)\n\n`;
+  const chunks: string[] = [];
+  let current = header;
+  for (let i = 0; i < sortedArtists.length; i++) {
+    const line = `${i + 1}. ${sortedArtists[i][0]} (${sortedArtists[i][1]}曲)\n`;
+    if (current.length + line.length > 1900) {
+      chunks.push(current);
+      current = '';
+    }
+    current += line;
+  }
+  if (current) chunks.push(current);
+
+  await interaction.editReply({ content: chunks[0] || header, components: [] });
+  for (const chunk of chunks.slice(1)) {
+    await interaction.followUp(chunk);
+  }
+}
+
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot) return;
+
+  const url = message.content.match(/https?:\/\/[^\s<>{}"']+/i)?.[0];
+  if (!url) return;
+
+  const isVideo = message.content.includes('動画');
+  const downloadPath = isVideo
+    ? await getUserVideoPath(message.author.id)
+    : await getUserMusicPath(message.author.id);
+  if (!downloadPath) {
+    await message.channel.send(
+      isVideo ? '❌ MusicVideoの保存先が未設定です。' : '❌ 音楽の保存先が未設定です。'
+    );
+    return;
+  }
+
+  try {
+    const playlistUrl = normalizeYouTubePlaylistUrl(url);
+    if (playlistUrl) {
+      const playlistInfo = await getPlaylistInfo(playlistUrl);
+      if (playlistInfo.videos.length === 0) {
+        await message.channel.send('❌ プレイリストに動画が見つかりませんでした。');
+        return;
+      }
+      const result = isVideo
+        ? await downloadVideoPlaylist(playlistInfo, message, downloadPath)
+        : await downloadPlaylist(playlistInfo, message, downloadPath);
+      await message.channel.send(
+        `📊 ${isVideo ? 'MusicVideo' : '音楽'}プレイリスト完了\n✅ 成功: ${result.successful.length}件\n` +
+          `⏭️ スキップ: ${result.skipped.length}件\n❌ 失敗: ${result.failed.length}件`
+      );
+      return;
+    }
+
+    const videoUrl = normalizeYouTubeVideoUrl(url);
+    if (!videoUrl) return;
+    const videoInfo = await getVideoInfo(videoUrl);
+    const result = isVideo
+      ? await downloadAsVideo(videoUrl, videoInfo, message, downloadPath)
+      : await downloadAsMP3(videoUrl, videoInfo, message, downloadPath);
+    await message.channel.send(
+      result.skipped
+        ? `⏭️ 既存ファイルのためスキップ: ${result.filename}`
+        : `✅ ダウンロード完了: ${result.filename}`
+    );
+  } catch (error) {
+    console.error(chalk.red('❌ URL貼り付けダウンロードエラー:'), error);
+    await message.channel.send(
+      `❌ ダウンロード失敗: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 });
 

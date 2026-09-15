@@ -1,4 +1,4 @@
-import type { ChatInputCommandInteraction } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, type ChatInputCommandInteraction } from 'discord.js';
 import { getAllMusicFiles } from '../utils/fileManager.js';
 import { updateMetadata } from '../utils/metadata.js';
 import { organizeFile } from '../utils/metadata.js';
@@ -114,7 +114,19 @@ async function handleList(
       }
     }
 
-    await interaction.editReply(message);
+    const components =
+      sortedArtists.length > 30
+        ? [
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`artists_all:${interaction.user.id}`)
+                .setLabel('全て表示')
+                .setStyle(ButtonStyle.Secondary)
+            ),
+          ]
+        : [];
+
+    await interaction.editReply({ content: message, components });
     console.log(chalk.green(`✓ アーティスト一覧表示: ${sortedArtists.length}件`));
   } catch (error) {
     console.error(chalk.red('✗ アーティスト一覧取得エラー:'), error);

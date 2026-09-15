@@ -10,7 +10,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const helpMessage = `
 🎵 **TubeJelly Bot - ヘルプ**
 
-YouTube動画をMP3としてダウンロードし、Jellyfinの音楽ライブラリに保存します。
+YouTubeの音楽をMP3、MusicVideoをMP4として保存します。
 
 **📥 ダウンロードコマンド**
 
@@ -19,12 +19,14 @@ YouTube動画をMP3としてダウンロードし、Jellyfinの音楽ライブ�
   • \`title\`: 曲名（省略可）
   • \`artist\`: アーティスト名（省略可）
   • \`album\`: アルバム名（省略可）
+  • \`video\`: MusicVideoとして保存（省略時はいいえ）
 
   **例:**
   \`/add url:https://youtube.com/watch?v=xxx\`
   \`/add url:https://youtu.be/xxx\`
   \`/add url:https://www.youtube.com/live/xxx\`
   \`/add url:https://youtube.com/watch?v=xxx title:素晴らしい曲 artist:歌手A album:アルバムB\`
+  \`/add url:https://youtube.com/watch?v=xxx video:True\`
 
   💡 \`youtube.com/...\` と \`youtu.be/...\` のどちらも利用できます。
   LiveアーカイブURL（\`/live/\`）にも対応しています。
@@ -34,10 +36,15 @@ YouTube動画をMP3としてダウンロードし、Jellyfinの音楽ライブ�
   • \`artist\`: アーティスト名（省略可、全曲に適用）
   • \`album\`: アルバム名（省略可、全曲に適用）
   • \`max\`: 最大ダウンロード数（省略可）
+  • \`video\`: MusicVideoとして保存（省略時はいいえ）
 
   **例:**
   \`/add_list url:https://youtube.com/playlist?list=xxx\`
   \`/add_list url:https://youtube.com/playlist?list=xxx artist:歌手A album:ベストアルバム\`
+
+\`/video\` - MusicVideoを単体ダウンロード（最大1080p、MP4）
+\`/video_list\` - 保存済みMusicVideoを表示
+\`/video_delete index:3\` - 保存済みMusicVideoを削除
 
 **📚 管理コマンド**
 

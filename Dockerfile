@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim
 
-# pnpmのインストール
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# package.jsonで指定したpnpmのバージョンを使用する
+RUN corepack enable && corepack prepare pnpm@12.4.1 --activate
 
 # ffmpeg、Python、yt-dlp、Denoのインストール
 RUN apt-get update && \
@@ -18,7 +18,7 @@ RUN apt-get update && \
 WORKDIR /app
 
 # パッケージファイルのコピー
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # 依存関係のインストール
 RUN pnpm install --frozen-lockfile --prod

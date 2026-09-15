@@ -1,3 +1,9 @@
-{
-  "DISCORD_USER_ID_HERE": "/music"
-}
+[
+  {
+    "NAME": "hoge",
+    "DISCORD_USER_ID": "000000",
+    "LINE_USER_ID": "xxxxxx",
+    "MUSIC_DL_DIR": "/music",
+    "VIDEO_DL_DIR": "/video"
+  }
+]

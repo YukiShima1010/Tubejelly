@@ -16,6 +16,8 @@ services:
       - /home/yukishima1010/jellyfin/media/music:/music
       - /home/yukishima1010/jellyfin/media/ittu-music:/ittu-music
       - /home/yukishima1010/jellyfin/media/mmi-music:/mmi-music
+      - /home/yukishima1010/jellyfin/media/video:/video
+      - /home/yukishima1010/jellyfin/media/ittu-video:/ittu-video
     networks:
       - tubejelly-network
     # リソース制限（オプション）
