@@ -1,0 +1,38 @@
+services:
+  tubejelly:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    ports:
+      - '${LINE_WEBHOOK_PORT:-3330}:${LINE_WEBHOOK_PORT:-3330}'
+    volumes:
+      - ${MUSIC_HOST_PATH:?MUSIC_HOST_PATH is required}:/music
+      - ${VIDEO_HOST_PATH:?VIDEO_HOST_PATH is required}:/video
+    networks:
+      - tubejelly-network
+    # リソース制限（オプション）
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles: [cloudflare]
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN:?CLOUDFLARED_TUNNEL_TOKEN is required}
+    depends_on:
+      - tubejelly
+    networks:
+      - tubejelly-network
+
+networks:
+  tubejelly-network:
+    driver: bridge

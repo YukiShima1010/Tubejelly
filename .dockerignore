@@ -1,0 +1,10 @@
+node_modules.pnpm - store;
+npm - debug.log;
+pnpm - debug.log.env.git.gitignore;
+README.md;
+QUICKSTART.md;
+downloads;
+dist.DS_Store.vscode;
+eslint.config.js;
+setup.sh;
+tubejelly.code - workspace;
