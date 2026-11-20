@@ -1,577 +1,255 @@
-# 🎵 TubeJelly
-
-Discord の DM または LINE公式アカウントに YouTube URL を送信すると、自動的に MP3 でダウンロードして Jellyfin の音楽ライブラリに保存する Bot です。
-
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-22-green)](https://nodejs.org/)
-[![pnpm](https://img.shields.io/badge/pnpm-9-orange)](https://pnpm.io/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue)](https://www.docker.com/)
-
----
-
-## ✨ 主な機能
-
-| 機能                    | 説明                                |
-| ----------------------- | ----------------------------------- |
-| 🤖 **簡単操作**         | DM に YouTube URL を送るだけ        |
-| 💬 **LINE 対応**        | LINE公式アカウントからも受付可能    |
-| 🎵 **高品質 MP3**       | 320kbps の高品質でダウンロード      |
-| 📦 **自動保存**         | Jellyfin の音楽ライブラリに自動保存 |
-| 🎼 **プレイリスト対応** | 一括ダウンロード & 件数指定可能     |
-| 🔄 **重複検出**         | 既存ファイルを自動検出してスキップ  |
-| 🐳 **Docker 対応**      | 簡単にデプロイ可能                  |
-
-### 🎨 リッチな UX
-
-- ✅ リアクションによる進捗表示
-- 📊 プログレスバー付きダウンロード進捗
-- 📋 詳細な動画情報表示（タイトル、投稿者、再生時間、ファイルサイズ）
-- 📈 プレイリスト一括処理の統計情報
-- 🎯 視覚的に見やすいフォーマット
-- 🌈 カラフルなコンソールログ
-
-### 💻 技術スタック
-
-- 🔷 **TypeScript 5.7** - 型安全で保守性の高いコード
-- ⚡ **Node.js 22** - 最新の JavaScript 機能
-- 📦 **pnpm 9** - 高速で効率的なパッケージマネージャー
-
----
-
----
-
-## 📋 必要なもの
-
-### Docker 使用時（推奨）
-
-- ✅ Docker & Docker Compose
-- ✅ Discord Bot Token
-- ✅ LINE Messaging API チャネル（任意）
-- ✅ Jellyfin の音楽ライブラリへのアクセス
-
-### ローカル開発の場合
-
-- ✅ Node.js 22 以上
-- ✅ pnpm 9 以上
-- ✅ yt-dlp（YouTube 動画ダウンロード）
-- ✅ ffmpeg（音声変換）
-
----
-
----
-
-## 🚀 クイックスタート
-
-### 1️⃣ Discord Bot の作成
-
-<details>
-<summary><b>詳細手順を表示</b></summary>
-
-1. [Discord Developer Portal](https://discord.com/developers/applications) にアクセス
-2. 「**New Application**」をクリック
-3. アプリケーション名を入力（例: `TubeJelly`）
-4. 左メニューから「**Bot**」を選択
-5. 「**Add Bot**」をクリック
-6. 「**MESSAGE CONTENT INTENT**」を有効化 ⚠️ **重要！**
-7. 「**Reset Token**」をクリックしてトークンをコピー
-
-</details>
-
-### 2️⃣ Bot を自分のアカウントに招待
-
-<details>
-<summary><b>詳細手順を表示</b></summary>
-
-1. 左メニューから「**OAuth2**」→「**URL Generator**」を選択
-2. **SCOPES** で「**bot**」を選択
-3. **BOT PERMISSIONS** で以下を選択:
-   - ✅ Send Messages
-   - ✅ Add Reactions
-   - ✅ Read Message History
-4. 生成された URL をブラウザで開き、Bot を追加
-
-</details>
-
-### 3️⃣ 環境変数と Docker の設定
-
-#### ステップ A: `.env` ファイルを作成
-
-```bash
-# .env.example をコピー
-cp .env.example .env
-
-# .env を編集
-nano .env
-```
-
-`.env` ファイルの内容:
-
-```env
-DISCORD_TOKEN=your_discord_bot_token_here
-LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token_here
-LINE_CHANNEL_SECRET=your_line_channel_secret_here
-LINE_WEBHOOK_PORT=3000
-# Docker使用時は必ず /music に設定してください
-JELLYFIN_MUSIC_PATH=/music
-```
-
-#### ステップ B: `docker-compose.yml` でボリュームマウントを設定
-
-`docker-compose.yml` を編集して、ホストマシンの Jellyfin 音楽ディレクトリをマウント:
-
-```yaml
-volumes:
-  # ⚠️ 重要: 以下の /path/to/jellyfin/music をあなたの実際のパスに変更
-  - /path/to/jellyfin/music:/music
-```
-
-**例（macOS の場合）:**
-
-```yaml
-volumes:
-  - /Users/username/Music/Jellyfin:/music
-```
-
-#### ステップ C: LINE ユーザーIDと保存先の対応を設定
-
-DiscordとLINEのユーザー設定は `src/config/users.json` に統合されています。
-`src/config/users.json.sample` を参考に、音楽とMusicVideoの保存先を設定してください。
-
-`src/config/users.json` の例:
-
-```json
-[
-  {
-    "NAME": "hoge",
-    "DISCORD_USER_ID": "000000",
-    "LINE_USER_ID": "xxxxxx",
-    "MUSIC_DL_DIR": "/music",
-    "VIDEO_DL_DIR": "/video"
-  }
-]
-```
-
-`MUSIC_DL_DIR` はMP3、`VIDEO_DL_DIR` はMP4の保存先です。MusicVideoは最大1080pで保存されます。
-
-### 4️⃣ Docker Compose で起動
-
-```bash
-# Dockerイメージのビルドと起動
-docker-compose up -d
-
-# ログの確認
-docker-compose logs -f
-```
-
-**✅ 起動成功の確認:**
-
-```
-🎵 TubeJelly Bot が起動しました！
-   ログイン: your-bot#1234
-   保存先: /music ✅
-   yt-dlp: v2025.11.12
-```
-
----
-
----
-
-## 📖 使い方
-
-### 基本的な使い方
-
-1. **Discord で Bot に DM を送信**
-2. **YouTube URL を送信**
-3. **自動ダウンロード開始！**
-4. **Jellyfin で再生** 🎉
-
-### URL の送信方法
-
-#### 🎬 単一動画
-
-```
-https://www.youtube.com/watch?v=dQw4w9WgXcQ
-```
-
-または
-
-```
-https://youtu.be/dQw4w9WgXcQ
-```
-
-#### 📋 プレイリスト（全てダウンロード）
-
-```
-https://www.youtube.com/playlist?list=PLxxxxxxxxxxxxxx
-```
-
-#### 📋 プレイリスト（件数指定）
-
-```
-https://www.youtube.com/playlist?list=PLxxxxxxxxxxxxxx 5
-```
-
-💡 スペースの後に数字を入れると、その件数だけダウンロードします
-
-### MusicVideo
-
-Discordでは `/video`、または `/add video:true` を使用します。プレイリストは
-`/add_list video:true` で処理できます。LINEでは本文に「動画」を含めてURLを送信します。
-
-```text
-動画 https://www.youtube.com/watch?v=xxxxxxxxxxx
-動画 https://www.youtube.com/playlist?list=xxxxxxxxxxx
-```
-
-### ヘルプコマンド
-
-DM で `help` または `ヘルプ` と送信すると、使い方を表示します。
-
----
-
----
-
-## 🎨 UI/UX プレビュー
-
-### リアクションによる進捗表示
-
-| リアクション | 意味                     |
-| ------------ | ------------------------ |
-| 👀           | リクエストを確認しました |
-| 📋           | プレイリスト情報を取得中 |
-| ⬇️           | ダウンロード中           |
-| ✅           | 完了しました             |
-| ❌           | エラーが発生しました     |
-
-### ダウンロード進捗
-
-<details>
-<summary><b>単一動画の場合</b></summary>
-
-```
-🎵 Song Title
-👤 Artist Name | ⏱️ 3:45
-📥 ダウンロード中: 60%
-[████████████░░░░░░░░]
-```
-
-</details>
-
-<details>
-<summary><b>プレイリストの場合</b></summary>
-
-```
-[1/10] 🎵 Song Title 1
-👤 Artist 1 | ⏱️ 4:12
-📥 ダウンロード中: 80%
-[████████████████░░░░]
-
-[2/10] ⏭️ スキップ（既に存在します）
-📦 8.52 MB
-```
-
-</details>
-
-### 完了メッセージ
-
-<details>
-<summary><b>単一動画 - 成功</b></summary>
-
-```
-━━━━━━━━━━━━━━━━━━━━
-✅ ダウンロード完了！
-
-🎬 Song Title
-👤 投稿者: Artist Name
-⏱️ 再生時間: 3:45
-📦 ファイルサイズ: 8.52 MB
-━━━━━━━━━━━━━━━━━━━━
-
-📂 保存先: `Artist Name - Song Title.mp3`
-
-🎉 Jellyfinでお楽しみください！
-```
-
-</details>
-
-<details>
-<summary><b>単一動画 - 重複スキップ</b></summary>
-
-```
-━━━━━━━━━━━━━━━━━━━━
-⏭️ スキップしました（既に存在）
-
-🎬 Song Title
-👤 投稿者: Artist Name
-⏱️ 再生時間: 3:45
-📦 ファイルサイズ: 8.52 MB
-━━━━━━━━━━━━━━━━━━━━
-
-📂 保存先: `Artist Name - Song Title.mp3`
-
-💡 このファイルは既にJellyfinライブラリに存在します
-```
-
-</details>
-
-<details>
-<summary><b>プレイリスト - 完了</b></summary>
-
-```
-✅ プレイリストダウンロード完了！
-
-━━━━━━━━━━━━━━━━━━━━
-📊 処理結果
-✅ 新規ダウンロード: 8件
-⏭️ スキップ（重複）: 2件
-📦 合計サイズ: 85.42 MB
-⏱️ 処理時間: 5:23
-━━━━━━━━━━━━━━━━━━━━
-
-✨ 新規ダウンロードファイル:
-🎵 `Artist1 - Song1.mp3`
-   📦 8.52 MB
-🎵 `Artist2 - Song2.mp3`
-   📦 7.83 MB
-...
-
-⏭️ スキップされたファイル:
-• `Artist3 - Song3.mp3` (9.21 MB)
-• `Artist4 - Song4.mp3` (8.15 MB)
-
-🎉 Jellyfinでお楽しみください！
-```
-
-</details>
-
----
-
----
-
-## 🛠️ ローカル開発
-
-Docker を使わずにローカルで開発する場合:
-
-### 依存関係のインストール
-
-```bash
-# パッケージのインストール
-pnpm install
-
-# yt-dlp のインストール
-# macOS
-brew install yt-dlp ffmpeg
-
-# Ubuntu/Debian
-sudo apt-get install python3-pip ffmpeg
-pip3 install yt-dlp
-
-# その他の環境
-pip3 install yt-dlp
-```
-
-### 開発コマンド
-
-| コマンド         | 説明                       |
-| ---------------- | -------------------------- |
-| `pnpm dev`       | 開発モード（ファイル監視） |
-| `pnpm build`     | TypeScript ビルド          |
-| `pnpm start`     | ビルド後の起動             |
-| `pnpm typecheck` | 型チェック                 |
-| `pnpm lint`      | コード品質チェック         |
-| `pnpm lint:fix`  | コード自動修正             |
-
-### VS Code デバッグ
-
-F5 キーでデバッガーを起動できます:
-
-- **Launch Bot (Dev)** - TypeScript を直接実行（tsx 使用）
-- **Launch Bot (Built)** - ビルド後の JavaScript を実行
-
----
-
----
-
-## 📁 プロジェクト構造
-
-```
-tubejelly/
-├── src/
-│   └── index.ts          # メインの Bot コード（TypeScript）
-├── dist/                 # ビルド後の JavaScript
-├── .vscode/              # VS Code 設定
-│   ├── extensions.json   # 推奨拡張機能
-│   ├── launch.json       # デバッグ設定
-│   └── settings.json     # エディタ設定
-├── .env                  # 環境変数（gitignore）
-├── .env.example          # 環境変数のテンプレート
-├── .gitignore
-├── .dockerignore
-├── .npmrc                # pnpm 設定
-├── .prettierrc           # Prettier 設定
-├── eslint.config.js      # ESLint 設定
-├── tsconfig.json         # TypeScript 設定
-├── Dockerfile            # Docker イメージ定義
-├── docker-compose.yml    # Docker Compose 設定
-├── package.json
-└── README.md
-```
-
----
-
-## 🔧 技術スタック
-
-### コア技術
-
-| カテゴリ       | 技術           | 説明                       |
-| -------------- | -------------- | -------------------------- |
-| 言語           | TypeScript 5.7 | 型安全な開発               |
-| ランタイム     | Node.js 22     | 最新の JavaScript 機能     |
-| パッケージ管理 | pnpm 9         | 高速で効率的な依存関係管理 |
-
-### 主要ライブラリ
-
-| ライブラリ                                     | 用途                     |
-| ---------------------------------------------- | ------------------------ |
-| [Discord.js 14](https://discord.js.org/)       | Discord Bot 開発         |
-| [yt-dlp](https://github.com/yt-dlp/yt-dlp)     | YouTube 動画ダウンロード |
-| [chalk](https://github.com/chalk/chalk)        | コンソールカラーリング   |
-| [execa](https://github.com/sindresorhus/execa) | プロセス実行             |
-
-### 開発ツール
-
-- **tsx** - TypeScript 直接実行
-- **ESLint** - コード品質チェック
-- **Prettier** - コードフォーマット
-
----
-
-## ⚙️ 設定
-
-### 環境変数
-
-| 変数名                      | 説明                         | デフォルト |
-| --------------------------- | ---------------------------- | ---------- |
-| `DISCORD_TOKEN`             | Discord Bot の Token         | (必須)     |
-| `LINE_CHANNEL_ACCESS_TOKEN` | LINEチャネルアクセストークン | (任意)     |
-| `LINE_CHANNEL_SECRET`       | LINEチャネルシークレット     | (任意)     |
-| `LINE_WEBHOOK_PORT`         | LINE Webhook待受ポート       | `3000`     |
-| `JELLYFIN_MUSIC_PATH`       | 音楽の保存先パス             | `/music`   |
-
-### LINE Webhook URL
-
-LINE 連携を有効化する場合は、Messaging API 側の Webhook URL を次に設定してください。
-
-```text
-https://あなたのドメイン/line/webhook
-```
-
-ローカル開発では ngrok 等で公開 URL を作成して設定してください。
-
-### Docker Compose のカスタマイズ
-
-`docker-compose.yml` でリソース制限などを調整できます:
-
-```yaml
-deploy:
-  resources:
-    limits:
-      cpus: '2'
-      memory: 2G
-    reservations:
-      cpus: '0.5'
-      memory: 512M
-```
-
----
-
----
-
-## 🐛 トラブルシューティング
-
-### ダウンロードが失敗する
-
-- ✅ yt-dlp がインストールされているか確認
-- ✅ ffmpeg がインストールされているか確認
-- ✅ YouTube URL が正しいか確認
-- ✅ インターネット接続を確認
-
-### ファイルが保存されない
-
-- ✅ `JELLYFIN_MUSIC_PATH` のパスが正しいか確認
-- ✅ Docker 使用時はボリュームマウントが正しいか確認
-- ✅ ディレクトリの書き込み権限を確認
-
-### ログの確認
-
-```bash
-# Docker ログ
-docker-compose logs -f
-
-# コンテナに入る
-docker exec -it tubejelly-bot sh
-```
-
----
-
-## 🎯 今後の機能予定
-
-### ✅ 実装済み
-
-- ✅ **プレイリスト対応**
-  - プレイリスト全体のダウンロード
-  - 件数指定でのダウンロード（例: `{URL} 10` で最初の 10 件）
-  - 詳細な進捗表示と統計情報
-- ✅ **重複ファイルの検出と回避**
-  - ファイル名の完全一致で自動検出
-  - 重複ファイルは自動的にスキップ
-  - プレイリストでのスキップ統計表示
-
-### 🔜 今後実装予定
-
-- [ ] ダウンロード履歴の記録
-- [ ] ユーザー別の設定保存（音質など）
-- [ ] ID3 タグの自動編集機能
-
-### 💡 Jellyfin API 連携について
-
-Jellyfin API との連携機能は **不要** と判断しています。
-
-**理由:**
-
-- ✅ Jellyfin の自動スキャン機能が優秀
-- ✅ ディレクトリに MP3 を追加するだけで自動検出
-- ✅ ID3 タグから自動的にメタデータを抽出
-- ✅ より詳細なメタデータは Jellyfin の設定で外部データベース連携可能
-
-**設計思想:**  
-TubeJelly は「MP3 ファイルを適切に保存する」ことに集中し、メタデータ管理は Jellyfin に任せる設計としています。
-
----
-
-## 🙏 使用技術
-
-このプロジェクトは以下のオープンソースプロジェクトを使用しています:
-
-- [Discord.js](https://discord.js.org/) - Discord Bot 開発
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube 動画ダウンロード
-- [chalk](https://github.com/chalk/chalk) - コンソールカラーリング
-- [execa](https://github.com/sindresorhus/execa) - プロセス実行
-- [TypeScript](https://www.typescriptlang.org/) - 型安全な開発
-- [pnpm](https://pnpm.io/) - 高速パッケージマネージャー
-
----
-
-## 📄 ライセンス
-
-MIT License
-
----
+# 🎶 TubeJelly
 
 <div align="center">
 
-Made with ❤️ for music lovers
+<img width="2240" height="1260" alt="Tubejelly-header" src="https://github.com/user-attachments/assets/f7690e0b-617d-49ee-aae0-49a1b65da611" />
 
-**[⭐ このプロジェクトにスターを付ける](https://github.com/YukiShima1010/tubejelly)**
+<p align="center">
+  <img src="https://img.shields.io/badge/TypeScript-007ACC.svg?logo=typescript&style=flat&logoColor=white">
+  <img src="https://img.shields.io/badge/Discord.js-5865F2.svg?logo=discord&style=flat&logoColor=white">
+  <img src="https://img.shields.io/badge/Node.js-339933.svg?logo=node.js&style=flat&logoColor=white">
+  <img src="https://img.shields.io/badge/Docker-2496ED.svg?logo=docker&style=flat&logoColor=white">
+</p>
+
+**好きな音楽を好きなだけ**
+
+_簡単に音楽をJellyfinのライブラリに追加_
+
+[セットアップガイド](./doc/setup/GETTING_STARTED.md) • [利用ガイド](./doc/USAGE.md) • [運用ガイド](./doc/RASPBERRY_PI_OPERATIONS.md) • [トラブルシューティング](./doc/TROUBLESHOOTING.md)
 
 </div>
+
+TubeJellyは、YouTube上に投稿されている音楽及びMusicVideoをDiscordまたはLINEで送信するだけで、Jellyfinのライブラリへ保存することのできるBot及びその機能を提供するシステムです。
+
+なお、初期OSS公開バージョンは`3.0.0`です。
+
+---
+
+## 機能
+
+- DiscordBotを介してYouTubeの音楽やMusicVideoをJellyfinのライブラリに保存
+- LINE Messaging API(LINE公式アカウント)を介してYouTubeの音楽やMusicVideoをJellyfinのライブラリに保存
+- YouTubeのライブラリの一括保存、個数制限での保存
+- ミュージックビデオのダウンロード（最大画質は容量の都合で1080p）
+- 音楽とMusicVideoを別々のホストディレクトリへ保存
+- ダウンロード済みの音楽の重複保存を防止
+- ダウンロード済みの音楽のタイトル・アーティスト名の変更及び削除
+- 複数ユーザーに対応（ユーザーごとに保存先と利用権限を分離）
+- DiscordとLINEの両方を同時に利用可能
+- Docker Composeでの運用が可能
+
+---
+
+## セットアップ
+
+### 1. 必須環境
+
+- Node.js 22以上
+- pnpm 12以上
+- Jellyfin
+- ffmpeg
+- yt-dlp
+- Docker Compose v3
+- Discord Bot Token もしくは LINE Messaging APIのアクセストークン
+- 書き込み可能な音楽用・MusicVideo用ディレクトリ
+
+### 2. クイックスタート
+
+```bash
+# 1. プロジェクト用のディレクトリを作成し、移動
+mkdir tubejelly && cd tubejelly
+
+# 2. リポジトリをクローン
+git clone https://github.com/YukiShima1010/tubejelly.git .
+
+# 3. .env.exampleをコピーして.envを作成
+cp .env.example .env
+```
+
+### 3. .env設定
+
+```bash
+cp .env.example .env
+```
+
+envファイルを編集して、使う連携先と保存先を設定してください。
+
+その際、必ずDiscordとLINEのどちらか一方、もしくは両方を有効化してください。少なくとも一方は`true`にしてください。
+
+```dotenv
+DISCORD_ENABLED=true
+LINE_ENABLED=false
+```
+
+アクセストークンの取得方法については、[セットアップガイド](./doc/setup/GETTING_STARTED.md)を参照してください。
+
+### 4. 初期セットアップ＆起動
+
+```bash
+./setup.sh
+docker compose up --build -d
+```
+
+実行後、`docker compose logs -f tubejelly`でログを確認できます。
+
+エラーが発生した場合は、[トラブルシューティング](./doc/TROUBLESHOOTING.md)を参照してください。
+
+---
+
+## ドキュメント
+
+- **[セットアップガイド](./doc/setup/GETTING_STARTED.md)** - セットアップに関する詳細な手順を記載しています。
+- **[利用ガイド](./doc/USAGE.md)** - DiscordとLINEのコマンド一覧、基本的な使い方を記載しています。
+- **[運用ガイド](./doc/RASPBERRY_PI_OPERATIONS.md)** - 本番環境の運用方法を記載しています。
+- **[トラブルシューティング](./doc/TROUBLESHOOTING.md)** - トラブルの原因と解決方法を記載しています。
+
+---
+
+## プロジェクト構成
+
+```
+tubejelly/
+├─ .dockerignore                 # Dockerイメージへコピーしないファイルを定義
+├─ .env.example                  # 環境変数の設定例。実際の秘密情報は含めない
+├─ .gitignore                    # Git管理から除外するファイルを定義
+├─ .prettierrc                   # Prettierの書式設定
+├─ .github/
+│  └─ FUNDING.yml                # GitHub Sponsors等の支援設定
+├─ .vscode/
+│  ├─ extensions.json             # 推奨VS Code拡張機能
+│  ├─ launch.json                 # デバッグ起動設定
+│  └─ settings.json               # ワークスペース固有のエディター設定
+├─ CHANGES.md                    # バージョンごとの変更履歴
+├─ Dockerfile                    # 本番用コンテナイメージのビルド定義
+├─ doc/
+│  ├─ RASPBERRY_PI_OPERATIONS.md # Raspberry Piでの運用手順
+│  ├─ TROUBLESHOOTING.md          # よくある問題の確認手順
+│  ├─ USAGE.md                    # DiscordとLINEの利用方法・コマンド一覧
+│  └─ setup/
+│     └─ GETTING_STARTED.md       # 初回セットアップガイド
+├─ LICENSE.md                    # MITライセンス
+├─ README.md                     # プロジェクト概要と利用手順
+├─ SECURITY.md                   # 脆弱性報告に関する案内
+├─ docker-compose.yml             # TubeJellyとCloudflare Tunnelのサービス定義
+├─ eslint.config.js              # ESLint 10の設定
+├─ package.json                  # npmパッケージ情報と開発用スクリプト
+├─ pnpm-lock.yaml                # pnpmの依存関係ロックファイル
+├─ pnpm-workspace.yaml           # pnpmワークスペース設定
+├─ setup.sh                      # 環境変数・Docker Composeの事前検証とビルド
+├─ tsconfig.json                 # TypeScriptコンパイラー設定
+├─ tubejelly.code-workspace      # VS Codeワークスペース定義
+└─ src/
+  ├─ index.ts                   # Discord BotとLINE Webhookの起動、イベント登録
+  ├─ types.ts                   # ダウンロードやユーザー設定で共有する型定義
+  ├─ commands/                  # Discordのスラッシュコマンド
+  │  ├─ add.ts                  # YouTube動画を音楽として追加
+  │  ├─ addList.ts              # YouTubeプレイリストを一括追加
+  │  ├─ artists.ts              # アーティスト別の音楽一覧を表示
+  │  ├─ delete.ts               # 音楽ファイルを削除
+  │  ├─ edit.ts                 # 音楽のタイトルやアーティスト情報を編集
+  │  ├─ help.ts                 # 利用可能なコマンドを表示
+  │  ├─ list.ts                 # 音楽ファイルの一覧を表示
+  │  ├─ video.ts                # YouTube動画をMusicVideoとして追加
+  │  ├─ videoDelete.ts          # MusicVideoファイルを削除
+  │  └─ videoList.ts            # MusicVideoの一覧を表示
+  ├─ config/
+  │  └─ runtime.ts              # 実行時の環境変数と連携機能の設定を読み込み
+  ├─ line/
+  │  └─ webhook.ts              # LINE Messaging APIのWebhook処理
+  └─ utils/                     # Discord・ダウンロード・ファイル操作の共通処理
+    ├─ discordDownloadMessage.ts # ダウンロード進捗をDiscordメッセージで通知
+    ├─ discordEmbeds.ts        # Discord Embedの生成
+    ├─ download.ts             # yt-dlpによるURL解析・音楽と動画のダウンロード
+    ├─ fileManager.ts          # ファイル一覧、存在確認、サイズや再生時間の取得
+    ├─ logger.ts               # pinoロガーの設定
+    ├─ metadata.ts             # 音楽ファイルのメタデータ読み書き
+    └─ userConfig.ts           # ユーザー別の保存先と権限設定の管理
+```
+
+---
+
+## 技術スタック
+
+### コア技術
+
+| カテゴリ                   | 技術               | バージョン                                    |
+| -------------------------- | ------------------ | --------------------------------------------- |
+| **ランタイム**             | Node.js            | `>=22.0.0`（Docker: `node:22-bookworm-slim`） |
+| **言語**                   | TypeScript         | `5.9.3`                                       |
+| **Discord連携**            | discord.js         | `^14.27.0`                                    |
+| **LINE連携**               | LINE Messaging API | 外部API（SDKなし）                            |
+| **モジュール形式**         | Node.js ESM        | `"type": "module"`                            |
+| **パッケージマネージャー** | pnpm               | `>=12.0.0`（固定: `12.4.1`）                  |
+
+### ユーティリティ
+
+| 用途                   | ライブラリ     | バージョン |
+| ---------------------- | -------------- | ---------- |
+| **ロガー**             | pino           | `^10.3.1`  |
+| **ターミナル表示**     | chalk          | `^6.0.1`   |
+| **外部コマンド実行**   | execa          | `^10.0.1`  |
+| **音楽メタデータ解析** | music-metadata | `^11.16.1` |
+| **ID3タグ編集**        | node-id3       | `^0.2.9`   |
+| **環境変数**           | dotenv         | `^18.0.4`  |
+
+### インフラ
+
+| 技術                  | 用途                                                       |
+| --------------------- | ---------------------------------------------------------- |
+| **Docker**            | Node.js、ffmpeg、Python、yt-dlpを含むコンテナ化            |
+| **Docker Compose**    | TubeJelly本体とCloudflare Tunnelのマルチコンテナ管理       |
+| **Cloudflare Tunnel** | LINE Webhookを外部公開する任意のトンネル                   |
+| **ffmpeg**            | 音声・動画の変換。Dockerイメージに導入                     |
+| **yt-dlp**            | YouTubeの動画情報取得とダウンロード。Dockerイメージに導入  |
+| **Jellyfin**          | ダウンロードした音楽・MusicVideoの保存先およびメディア管理 |
+
+### 開発ツール
+
+| 用途                  | ツール                                    | バージョン |
+| --------------------- | ----------------------------------------- | ---------- |
+| **静的解析**          | ESLint                                    | `^10.11.0` |
+| **TypeScript ESLint** | @typescript-eslint/parser / eslint-plugin | `^8.70.1`  |
+| **型定義**            | @types/node                               | `^26.6.3`  |
+| **開発実行**          | tsx                                       | `^4.23.15` |
+| **ビルド**            | TypeScript Compiler（`tsc`）              | `5.9.3`    |
+
+---
+
+## ロゴ・ヘッダー画像の著作権
+
+本プロジェクトで使用しているロゴおよびヘッダー画像の著作権は、制作者である**YukiShima1010**が保有しています。これらの画像は、MITライセンスの対象となるソースコードには含まれません。無断転載、改変、再配布、商用利用を禁止します。
+
+---
+
+## 免責事項
+
+このプロジェクトは、YouTubeの音楽及びMusicVideoをJellyfinのライブラリに保存するためのツールです。YouTubeの利用規約に従って使用してください。TubeJellyの使用によって生じた損害について、作者は一切責任を負いません。
+
+---
+
+## 開発者
+
+**YukiShima1010**
+
+- GitHub: [@YukiShima1010](https://github.com/YukiShima1010)
+- Repository: [TubeJelly](https://github.com/YukiShima1010/TubeJelly)
+
+<div align="center">
+
+**Let`s Enjoy Music!** 🌟
+
+_好きな音楽を好きなだけ_
+
+</div>
+
+---
+
+## ライセンス
+
+このプロジェクトはMITライセンスの下で公開されています。詳細は[LICENSE.md](./LICENSE.md)を参照してください。
+
+---
+
+## コピーライト
+
+`Copyright © 2026 YukiShima1010. All rights reserved.`
