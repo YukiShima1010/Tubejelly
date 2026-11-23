@@ -18,6 +18,8 @@ services:
       - /home/yukishima1010/jellyfin/media/mmi-music:/mmi-music
       - /home/yukishima1010/jellyfin/media/video:/video
       - /home/yukishima1010/jellyfin/media/ittu-video:/ittu-video
+      # Chrome拡張機能の連携情報（トークンのハッシュ）を永続化
+      - tubejelly-data:/app/data
     networks:
       - tubejelly-network
     # リソース制限（オプション）
@@ -43,3 +45,6 @@ services:
 networks:
   tubejelly-network:
     driver: bridge
+
+volumes:
+  tubejelly-data:

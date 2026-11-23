@@ -36,6 +36,7 @@ TubeJellyは、YouTube上に投稿されている音楽及びMusicVideoをDiscor
 - ダウンロード済みの音楽のタイトル・アーティスト名の変更及び削除
 - 複数ユーザーに対応（ユーザーごとに保存先と利用権限を分離）
 - DiscordとLINEの両方を同時に利用可能
+- Chrome拡張機能から、開いているYouTube動画をボタン1つで保存（Discord/LINEでコードを送るだけで連携）
 - Docker Composeでの運用が可能
 
 ---
@@ -102,6 +103,7 @@ docker compose up --build -d
 - **[利用ガイド](./doc/USAGE.md)** - DiscordとLINEのコマンド一覧、基本的な使い方を記載しています。
 - **[運用ガイド](./doc/RASPBERRY_PI_OPERATIONS.md)** - 本番環境の運用方法を記載しています。
 - **[トラブルシューティング](./doc/TROUBLESHOOTING.md)** - トラブルの原因と解決方法を記載しています。
+- **[Chrome拡張機能ガイド](./doc/EXTENSION.md)** - 拡張機能の導入・連携・使い方を記載しています。
 
 ---
 
@@ -121,7 +123,11 @@ tubejelly/
 │  └─ settings.json               # ワークスペース固有のエディター設定
 ├─ CHANGES.md                    # バージョンごとの変更履歴
 ├─ Dockerfile                    # 本番用コンテナイメージのビルド定義
+├─ CLAUDE.md                     # Claude Code向けの開発ガイド
 ├─ doc/
+│  ├─ agent/
+│  │  └─ chrome_extension_design.md # Chrome拡張機能の設計書
+│  ├─ EXTENSION.md                # Chrome拡張機能の導入・使い方
 │  ├─ RASPBERRY_PI_OPERATIONS.md # Raspberry Piでの運用手順
 │  ├─ TROUBLESHOOTING.md          # よくある問題の確認手順
 │  ├─ USAGE.md                    # DiscordとLINEの利用方法・コマンド一覧
@@ -132,9 +138,16 @@ tubejelly/
 ├─ SECURITY.md                   # 脆弱性報告に関する案内
 ├─ docker-compose.yml             # TubeJellyとCloudflare Tunnelのサービス定義
 ├─ eslint.config.js              # ESLint 10の設定
+├─ extension/                    # Chrome拡張機能（Manifest V3、ビルド不要）
+│  ├─ manifest.json
+│  ├─ popup.html / popup.css / popup.js # ポップアップ画面
+│  ├─ background.js               # バックグラウンドの状態確認・通知
+│  └─ lib/                        # APIクライアント・保存・URL解析
 ├─ package.json                  # npmパッケージ情報と開発用スクリプト
 ├─ pnpm-lock.yaml                # pnpmの依存関係ロックファイル
 ├─ pnpm-workspace.yaml           # pnpmワークスペース設定
+├─ scripts/
+│  └─ package-extension.sh      # Chrome拡張機能をZIPに出力
 ├─ setup.sh                      # 環境変数・Docker Composeの事前検証とビルド
 ├─ tsconfig.json                 # TypeScriptコンパイラー設定
 ├─ tubejelly.code-workspace      # VS Codeワークスペース定義
@@ -148,12 +161,16 @@ tubejelly/
   │  ├─ delete.ts               # 音楽ファイルを削除
   │  ├─ edit.ts                 # 音楽のタイトルやアーティスト情報を編集
   │  ├─ help.ts                 # 利用可能なコマンドを表示
+  │  ├─ link.ts                 # Chrome拡張機能の連携コードを入力
   │  ├─ list.ts                 # 音楽ファイルの一覧を表示
   │  ├─ video.ts                # YouTube動画をMusicVideoとして追加
   │  ├─ videoDelete.ts          # MusicVideoファイルを削除
   │  └─ videoList.ts            # MusicVideoの一覧を表示
   ├─ config/
   │  └─ runtime.ts              # 実行時の環境変数と連携機能の設定を読み込み
+  ├─ extension/                # Chrome拡張機能API（連携コード・トークン・ジョブキュー）
+  ├─ http/
+  │  └─ server.ts               # LINE Webhookと拡張機能APIの共用HTTPサーバー
   ├─ line/
   │  └─ webhook.ts              # LINE Messaging APIのWebhook処理
   └─ utils/                     # Discord・ダウンロード・ファイル操作の共通処理
