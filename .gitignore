@@ -3,6 +3,7 @@ node_modules/
 .pnpm-store/
 downloads/
 dist/
+release/
 *.log
 deno.lock
 
@@ -10,6 +11,8 @@ deno.lock
 .env
 users.json
 lineUsers.json
+data/
+.claude/settings.local.json
 
 # OS
 .DS_Store

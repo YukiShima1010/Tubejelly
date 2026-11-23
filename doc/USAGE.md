@@ -190,7 +190,16 @@ artists rename old="旧アーティスト" new="新アーティスト"
 
 LINEではMusicVideo専用の一覧・削除コマンドはありません。MusicVideoの保存はURL本文に`動画`を含めて実行してください。
 
-## 4. 利用時の注意
+## 4. Chrome拡張機能
+
+YouTubeを開いた状態で拡張機能の「追加」ボタンを押すだけで保存できます。導入と連携の手順は [Chrome拡張機能ガイド](EXTENSION.md) を参照してください。
+
+| チャネル | 連携コードの送り方 |
+| --- | --- |
+| Discord | BotとのDMに `TJ-XXXX-XXXX` を貼り付け、または `/link code:TJ-XXXX-XXXX`（サーバー内は `/link` のみ） |
+| LINE | トークに `TJ-XXXX-XXXX` を貼り付け |
+
+## 5. 利用時の注意
 
 - 一覧の番号は現在の保存先に対する番号です。削除・編集前に最新の一覧を確認してください。
 - プレイリストの大量保存では、保存先の容量とYouTubeへのアクセス制限に注意してください。
@@ -198,7 +207,9 @@ LINEではMusicVideo専用の一覧・削除コマンドはありません。Mus
 - YouTubeの利用規約、著作権、地域の法令に従って利用してください。
 - Token、Channel secret、Cloudflare Tunnel tokenをチャットやIssueへ貼り付けないでください。
 
-## 5. 関連ドキュメント
+## 6. 関連ドキュメント
+
+- [Chrome拡張機能ガイド](EXTENSION.md)
 
 - [セットアップガイド](setup/GETTING_STARTED.md)
 - [Linux運用ガイド](RASPBERRY_PI_OPERATIONS.md)

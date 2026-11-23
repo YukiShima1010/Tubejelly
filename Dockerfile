@@ -33,8 +33,8 @@ RUN pnpm install --frozen-lockfile && pnpm run build
 # 本番環境用の依存関係のみ残す
 RUN pnpm prune --prod
 
-# 一時ディレクトリの作成
-RUN mkdir -p /app/downloads
+# 一時ディレクトリと永続データ（拡張機能トークン）用ディレクトリの作成
+RUN mkdir -p /app/downloads /app/data
 
 # 非rootユーザーで実行
 RUN addgroup --gid 1001 nodejs && \

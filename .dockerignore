@@ -14,3 +14,8 @@ dist
 eslint.config.js
 setup.sh
 tubejelly.code-workspace
+extension
+doc
+data
+.claude
+CLAUDE.md

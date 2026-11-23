@@ -15,7 +15,10 @@ import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { loadUserConfig } from './utils/userConfig.js';
-import { startLineWebhookServer } from './line/webhook.js';
+import { createLineWebhookHandler } from './line/webhook.js';
+import { startHttpServer, type RouteHandler } from './http/server.js';
+import { createExtensionApiHandler } from './extension/api.js';
+import { getExtensionService, getExtensionTokenStorePath } from './extension/instance.js';
 import {
   downloadAsMP3,
   downloadAsVideo,
@@ -156,18 +159,25 @@ client.once(Events.ClientReady, async (c) => {
   // スラッシュコマンドを登録
   await registerCommands();
 
+  console.log(chalk.green.bold(`\n🚀 準備完了！コマンドを受け付けています。\n`));
+});
+
+/**
+ * LINE Webhook と Chrome拡張機能API を共用HTTPサーバーで起動する
+ */
+function startHttpServerIfNeeded(): void {
+  const routes: RouteHandler[] = [];
+  const extensionService = getExtensionService();
+
   if (LINE_CHANNEL_SECRET && LINE_CHANNEL_ACCESS_TOKEN) {
-    if (Number.isNaN(LINE_WEBHOOK_PORT) || LINE_WEBHOOK_PORT < 1 || LINE_WEBHOOK_PORT > 65535) {
-      console.warn(
-        chalk.yellow(`⚠️ LINE_WEBHOOK_PORT が不正です: ${process.env.LINE_WEBHOOK_PORT}`)
-      );
-    } else {
-      startLineWebhookServer({
+    routes.push(
+      createLineWebhookHandler({
         channelSecret: LINE_CHANNEL_SECRET,
         channelAccessToken: LINE_CHANNEL_ACCESS_TOKEN,
-        port: LINE_WEBHOOK_PORT,
-      });
-    }
+        extensionService,
+      })
+    );
+    console.log(chalk.green('✓ LINE連携を有効化: /line/webhook'));
   } else {
     console.log(
       chalk.yellow(
@@ -176,8 +186,30 @@ client.once(Events.ClientReady, async (c) => {
     );
   }
 
-  console.log(chalk.green.bold(`\n🚀 準備完了！コマンドを受け付けています。\n`));
-});
+  if (extensionService) {
+    routes.push(createExtensionApiHandler(extensionService));
+    console.log(
+      chalk.green(`✓ Chrome拡張機能APIを有効化: /ext/v1 (トークン保存先: ${getExtensionTokenStorePath()})`)
+    );
+  } else {
+    console.log(chalk.yellow('⚠️ Chrome拡張機能APIは無効です（EXTENSION_API_ENABLED=true で有効化）'));
+  }
+
+  if (routes.length === 0) return;
+
+  if (Number.isNaN(LINE_WEBHOOK_PORT) || LINE_WEBHOOK_PORT < 1 || LINE_WEBHOOK_PORT > 65535) {
+    console.warn(
+      chalk.yellow(
+        `⚠️ LINE_WEBHOOK_PORT が不正です: ${process.env.LINE_WEBHOOK_PORT}（LINE連携・Chrome拡張機能APIとも起動しません）`
+      )
+    );
+    return;
+  }
+
+  startHttpServer(LINE_WEBHOOK_PORT, routes).on('error', (error) => {
+    console.error(chalk.red('❌ HTTPサーバーの起動に失敗:'), error);
+  });
+}
 
 // インタラクション（スラッシュコマンド）の処理
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -263,6 +295,25 @@ async function handleAllArtistsButton(interaction: ButtonInteraction): Promise<v
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
 
+  // Chrome拡張機能の連携コード（コードが他人に見えないよう、DMのみ受け付ける。サーバーでは /link を使う）
+  const extensionService = getExtensionService();
+  if (extensionService && message.channel.isDMBased()) {
+    try {
+      const pairingReply = await extensionService.handlePairingMessage(
+        message.content,
+        message.author.id,
+        'discord'
+      );
+      if (pairingReply) {
+        await message.reply(pairingReply);
+        return;
+      }
+    } catch (error) {
+      console.error(chalk.red('❌ 連携コード処理エラー:'), error);
+      return;
+    }
+  }
+
   const url = message.content.match(/https?:\/\/[^\s<>{}"']+/i)?.[0];
   if (!url) return;
 
@@ -322,6 +373,9 @@ client.on(Events.Error, (error) => {
 process.on('unhandledRejection', (error) => {
   console.error(chalk.red('❌ 未処理のPromise拒否:'), error);
 });
+
+// HTTPサーバー（LINE Webhook・Chrome拡張機能API）はDiscordの準備状態に関係なく起動する
+startHttpServerIfNeeded();
 
 // Botを起動
 client.login(DISCORD_TOKEN).catch((error) => {

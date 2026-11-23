@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from 'crypto';
-import { createServer, type IncomingMessage, type Server } from 'http';
 import { request as httpsRequest } from 'https';
 import { Buffer } from 'buffer';
 import { URL } from 'url';
@@ -19,6 +18,8 @@ import {
 import { formatFileSize, getAllMusicFiles, getMusicFileByIndex } from '../utils/fileManager.js';
 import { getLineUserMusicPath, getLineUserVideoPath } from '../utils/userConfig.js';
 import { organizeFile, setMetadataAndOrganize, updateMetadata } from '../utils/metadata.js';
+import { PayloadTooLargeError, readRawBody, type RouteHandler } from '../http/server.js';
+import type { ExtensionService } from '../extension/service.js';
 
 const LINE_REPLY_ENDPOINT = 'https://api.line.me/v2/bot/message/reply';
 const LINE_PUSH_ENDPOINT = 'https://api.line.me/v2/bot/message/push';
@@ -26,8 +27,11 @@ const LINE_PUSH_ENDPOINT = 'https://api.line.me/v2/bot/message/push';
 interface LineWebhookConfig {
   channelSecret: string;
   channelAccessToken: string;
-  port: number;
+  /** Chrome拡張機能の連携コード受付（無効時は undefined） */
+  extensionService?: ExtensionService | null;
 }
+
+const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
 
 interface LineWebhookBody {
   events?: LineWebhookEvent[];
@@ -37,6 +41,7 @@ interface LineWebhookEvent {
   type?: string;
   replyToken?: string;
   source?: {
+    type?: string;
     userId?: string;
   };
   message?: {
@@ -711,7 +716,11 @@ async function handleLineCommand(
   return false;
 }
 
-async function handleLineEvent(event: LineWebhookEvent, messenger: LineMessenger): Promise<void> {
+async function handleLineEvent(
+  event: LineWebhookEvent,
+  messenger: LineMessenger,
+  extensionService?: ExtensionService | null
+): Promise<void> {
   if (event.type !== 'message' || !event.replyToken) {
     return;
   }
@@ -754,6 +763,19 @@ async function handleLineEvent(event: LineWebhookEvent, messenger: LineMessenger
       '❌ このLINEアカウントは未登録です。管理者にLINE User IDの登録を依頼してください。'
     );
     return;
+  }
+
+  // Chrome拡張機能の連携コード（他人に見えるグループ・複数人トークでは受け付けない）
+  if (extensionService && event.source?.type === 'user') {
+    const pairingReply = await extensionService.handlePairingMessage(
+      event.message.text,
+      userId,
+      'line'
+    );
+    if (pairingReply) {
+      await messenger.replyText(event.replyToken, pairingReply);
+      return;
+    }
   }
 
   const parsedCommand = parseLineCommand(event.message.text);
@@ -802,50 +824,32 @@ async function handleLineEvent(event: LineWebhookEvent, messenger: LineMessenger
   );
 }
 
-async function readRawBody(req: IncomingMessage): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let totalSize = 0;
-
-    req.on('data', (chunk: Buffer) => {
-      totalSize += chunk.length;
-      if (totalSize > 1024 * 1024) {
-        reject(new Error('Webhook payload too large'));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-
-    req.on('end', () => {
-      resolve(Buffer.concat(chunks).toString('utf-8'));
-    });
-
-    req.on('error', reject);
-  });
-}
-
-export function startLineWebhookServer(config: LineWebhookConfig): Server {
+/**
+ * LINE Webhook（/line/*）を処理するルートハンドラーを作成する
+ */
+export function createLineWebhookHandler(config: LineWebhookConfig): RouteHandler {
   const messenger = new LineMessenger(config.channelAccessToken);
 
-  const server = createServer(async (req, res) => {
-    const requestPath = (req.url ?? '/').split('?')[0];
-
+  return async (req, res, requestPath) => {
     if (req.method === 'GET' && requestPath === '/line/health') {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ ok: true }));
-      return;
+      return true;
     }
 
-    if (req.method !== 'POST' || requestPath !== '/line/webhook') {
-      res.statusCode = 404;
-      res.end('Not Found');
-      return;
+    if (requestPath !== '/line/webhook') {
+      return false;
+    }
+
+    if (req.method !== 'POST') {
+      res.statusCode = 405;
+      res.end('Method Not Allowed');
+      return true;
     }
 
     try {
-      const rawBody = await readRawBody(req);
+      const rawBody = await readRawBody(req, MAX_WEBHOOK_BODY_BYTES);
       const signatureHeader = req.headers['x-line-signature'];
       const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
 
@@ -853,7 +857,7 @@ export function startLineWebhookServer(config: LineWebhookConfig): Server {
         console.warn(chalk.yellow('⚠️ LINE署名検証に失敗しました'));
         res.statusCode = 401;
         res.end('Unauthorized');
-        return;
+        return true;
       }
 
       const body = JSON.parse(rawBody) as LineWebhookBody;
@@ -861,7 +865,7 @@ export function startLineWebhookServer(config: LineWebhookConfig): Server {
 
       for (const event of events) {
         try {
-          await handleLineEvent(event, messenger);
+          await handleLineEvent(event, messenger, config.extensionService);
         } catch (error) {
           if (isLineApiError(error) && error.isRateLimit) {
             console.warn(
@@ -878,17 +882,17 @@ export function startLineWebhookServer(config: LineWebhookConfig): Server {
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ ok: true }));
     } catch (error) {
+      if (error instanceof PayloadTooLargeError) {
+        res.statusCode = 413;
+        // 残りのボディを読み続けないよう接続を閉じる
+        res.setHeader('Connection', 'close');
+        res.end('Payload Too Large');
+        return true;
+      }
       console.error(chalk.red('❌ LINE Webhook処理エラー:'), error);
       res.statusCode = 500;
       res.end('Internal Server Error');
     }
-  });
-
-  server.listen(config.port, () => {
-    console.log(
-      chalk.green(`✓ LINE Webhook サーバー起動: http://0.0.0.0:${config.port}/line/webhook`)
-    );
-  });
-
-  return server;
+    return true;
+  };
 }

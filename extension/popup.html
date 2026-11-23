@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>TubeJelly</title>
+    <link rel="stylesheet" href="popup.css" />
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body>
+    <header class="header">
+      <img src="icons/icon48.png" alt="" class="logo" />
+      <h1>TubeJelly</h1>
+      <span id="user-chip" class="user-chip" hidden></span>
+    </header>
+
+    <div id="banner" class="banner" role="alert" hidden></div>
+
+    <!-- 初期設定 -->
+    <section id="setup-view" class="view" hidden>
+      <h2>サーバーと連携</h2>
+      <form id="setup-form" class="stack">
+        <label class="field">
+          <span>サーバーURL</span>
+          <input
+            id="server-url"
+            type="url"
+            placeholder="https://tubejelly.example.com"
+            autocomplete="url"
+            required
+          />
+        </label>
+        <label class="field">
+          <span>端末名（Discord/LINEの確認メッセージに表示）</span>
+          <input id="device-name" type="text" maxlength="40" placeholder="Chrome" />
+        </label>
+        <p id="http-warning" class="hint warn" hidden>
+          ⚠️ HTTPは暗号化されません。Cloudflare Tunnel などの https:// のURLを推奨します。
+        </p>
+        <button id="setup-submit" type="submit" class="primary">接続して連携コードを発行</button>
+      </form>
+    </section>
+
+    <!-- 連携コード表示 -->
+    <section id="pairing-view" class="view" hidden>
+      <h2>連携コード</h2>
+      <div class="code-box">
+        <code id="pairing-code"></code>
+        <button id="copy-code" type="button" class="ghost small">コピー</button>
+      </div>
+      <p id="pairing-timer" class="hint"></p>
+      <ol class="steps">
+        <li>DiscordのBotとのDM、または LINE公式アカウントのトークに、このコードを貼り付けて送信します。</li>
+        <li>Discordでは <code>/link code:コード</code> でも連携できます。</li>
+        <li>「連携しました」と返信が来たら、この画面に戻ってください。</li>
+      </ol>
+      <p id="pairing-status" class="status-line"><span class="spinner"></span>承認を待っています…</p>
+      <div class="row">
+        <button id="pairing-retry" type="button" class="primary" hidden>コードを再発行</button>
+        <button id="pairing-cancel" type="button" class="ghost">キャンセル</button>
+      </div>
+    </section>
+
+    <!-- メイン -->
+    <section id="main-view" class="view" hidden>
+      <div id="tab-card" class="tab-card">
+        <div id="tab-title" class="tab-title"></div>
+        <div id="tab-url" class="tab-url"></div>
+      </div>
+
+      <fieldset class="segmented" id="kind-group">
+        <legend class="visually-hidden">種別</legend>
+        <label>
+          <input type="radio" name="kind" value="music" checked />
+          <span>🎵 ミュージック</span>
+        </label>
+        <label>
+          <input type="radio" name="kind" value="video" />
+          <span>🎬 動画</span>
+        </label>
+      </fieldset>
+
+      <label id="playlist-option" class="check" hidden>
+        <input id="playlist-check" type="checkbox" />
+        <span>プレイリスト全体を追加</span>
+      </label>
+      <p id="playlist-only" class="hint" hidden>プレイリストのページのため、全体を追加します。</p>
+
+      <button id="add-button" type="button" class="primary big">追加</button>
+      <p id="add-error" class="hint error" hidden></p>
+
+      <div class="history-header">
+        <h2>履歴</h2>
+        <button id="clear-history" type="button" class="link">完了分をクリア</button>
+      </div>
+      <ul id="job-list" class="job-list"></ul>
+      <p id="job-empty" class="hint empty">まだ追加していません。</p>
+
+      <footer class="footer">
+        <span id="server-label" class="server-label"></span>
+        <button id="unlink" type="button" class="link danger">連携解除</button>
+      </footer>
+    </section>
+  </body>
+</html>

@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Chrome拡張機能（`extension/`）。開いているYouTube動画を「ミュージック」「動画」を選んで追加し、待機中・実行中・成功・失敗の状態と詳細ログを表示
+- 拡張機能用API（`/ext/v1`）。Discord/LINEに連携コードを送ってアカウントを紐付け
+- Discordの`/link`コマンド
+- `EXTENSION_API_ENABLED`、`EXTENSION_TOKEN_STORE_PATH`環境変数と名前付きボリューム`tubejelly-data`
+- `pnpm test`（node:test）
+
+### Changed
+
+- LINE Webhookと拡張機能APIでHTTPサーバーを共用（LINE未設定でも拡張機能APIのみで起動可能）
+
 ## [3.0.0] - 2026-09-27
 
 ### Added
