@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [3.1.0] - 2026-11-24
 
 ### Added
 
@@ -8,11 +8,12 @@
 - 拡張機能用API（`/ext/v1`）。Discord/LINEに連携コードを送ってアカウントを紐付け
 - Discordの`/link`コマンド
 - `EXTENSION_API_ENABLED`、`EXTENSION_TOKEN_STORE_PATH`環境変数と名前付きボリューム`tubejelly-data`
-- `pnpm test`（node:test）
+- `pnpm test`（node:test）と`pnpm package:extension`（拡張機能のZIP出力）
 
 ### Changed
 
-- LINE Webhookと拡張機能APIでHTTPサーバーを共用（LINE未設定でも拡張機能APIのみで起動可能）
+- LINE Webhookと拡張機能APIでHTTPサーバーを共用（LINE未設定でも拡張機能APIのみで起動可能、Discordの準備を待たずに起動）
+- `package.json`のバージョンを3.1.0に更新
 
 ## [3.0.0] - 2026-09-27
 
