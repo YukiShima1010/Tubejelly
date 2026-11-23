@@ -1,85 +1,87 @@
-# Linux 運用ガイド
+# 運用ガイド（Raspberry Pi / Linux）
 
-Linux端末で、Docker Compose版TubeJellyを運用するための手順です。
+セットアップ済みのTubeJellyを日常的に運用するための手順です。初回セットアップは [セットアップガイド](setup/GETTING_STARTED.md) を参照してください。
 
-## 前提
-
-- 64bit Linuxが動作していること
-- Docker EngineとDocker Compose v3がインストール済みであること
-- Jellyfinが参照する保存先へ書き込めること
-- YouTubeへ接続できること
-
-## ディレクトリを準備
-
-音楽とMusicVideoを別々のディレクトリへ保存します。例:
+## 起動・停止
 
 ```bash
-sudo mkdir -p /srv/jellyfin/music /srv/jellyfin/video
-sudo chown -R 1001:1001 /srv/jellyfin/music /srv/jellyfin/video
+docker compose up -d                  # 起動（TubeJelly + cloudflared）
+docker compose up -d tubejelly        # 本体のみ起動（LINE・拡張機能を使わない場合）
+docker compose ps                     # 状態確認
+docker compose logs -f tubejelly      # ログ
+docker compose restart tubejelly      # 再起動
+docker compose down                   # 停止
 ```
 
-コンテナはUID/GID `1001`の`nodejs`ユーザーで動作します。環境によっては、既存のJellyfinグループへ適切なアクセス権を設定してください。
-
-`.env`にはホスト側のパスを設定します。
-
-```dotenv
-MUSIC_HOST_PATH=/srv/jellyfin/music
-VIDEO_HOST_PATH=/srv/jellyfin/video
-```
-
-## 起動と停止
+コンテナは `restart: unless-stopped` のため、Dockerが起動していればOS再起動後も自動で起動します。
 
 ```bash
-docker compose up -d
-docker compose ps
-docker compose logs -f tubejelly
-docker compose down
-```
-
-LINEを利用し、Compose内のCloudflare Tunnelも起動する場合:
-
-```bash
-docker compose --profile cloudflare up -d
+sudo systemctl enable --now docker
 ```
 
 ## 更新手順
 
 ```bash
 git pull
-./setup.sh
-docker compose up -d --build
+./setup.sh                 # 設定チェック + ビルド
+docker compose up -d
 docker compose logs --tail=100 tubejelly
 ```
 
-`setup.sh`は設定検証後にイメージをビルドします。更新前に、`.env`と保存先の場所を確認してください。
+更新後は [CHANGES.md](../CHANGES.md) で、新しい設定項目（`.env` に追加が必要なもの）がないか確認してください。
+
+## ユーザーの追加・変更
+
+1. `src/config/users.json` を編集（保存先を分ける場合は docker-compose.yml の volumes も追加）
+2. `./setup.sh --check` で確認
+3. `docker compose up -d --build`（users.json はイメージに含まれるため再ビルドが必要）
+
+## yt-dlp の更新
+
+YouTube側の変更で取得に失敗するようになったら、yt-dlpを最新にします（ビルド時に最新版が入ります）。
+
+```bash
+docker compose build --no-cache tubejelly
+docker compose up -d
+```
 
 ## データとバックアップ
 
-TubeJellyは設定をデータベースへ保存しません。重要なデータは次のとおりです。
+| データ | 場所 | 備考 |
+| --- | --- | --- |
+| 環境変数・秘密情報 | `.env` | 権限を絞って保管 |
+| ユーザー設定 | `src/config/users.json` | Git管理外 |
+| 拡張機能の連携情報 | Dockerボリューム `tubejelly-data`（`/app/data/extension-tokens.json`） | 消えた場合は拡張機能から再連携すればよい |
+| 音楽・MusicVideo | docker-compose.yml の volumes のホスト側 | Jellyfinの運用方針に合わせてバックアップ |
 
-- `.env`
-- 音楽保存先（`MUSIC_HOST_PATH`）
-- MusicVideo保存先（`VIDEO_HOST_PATH`）
+拡張機能の連携情報を確認・バックアップする例:
 
-`.env`は秘密情報を含むため、アクセス権を制限した安全な場所へバックアップしてください。音楽・動画ファイルはJellyfinの運用方針に合わせてバックアップします。
+```bash
+docker compose exec tubejelly cat /app/data/extension-tokens.json
+```
+
+`docker compose down -v` はボリュームも削除するため、拡張機能の連携がすべて解除されます。
 
 ## ログとリソース
 
 ```bash
 docker compose logs --tail=200 tubejelly
 docker stats
+vcgencmd measure_temp      # Raspberry Pi のCPU温度
+df -h                      # 空き容量
 ```
 
-Raspberry Piなど小型Linux端末では、同時ダウンロード数、保存先の空き容量、CPU温度を定期的に確認してください。長時間の変換ではffmpegがCPUを使用します。
+Chrome拡張機能からの追加は1件ずつ順番に処理されますが、Discord/LINEからの追加はそれと並行して動きます。大きなプレイリストを複数同時に追加すると、ffmpegの変換でCPU負荷と温度が上がります。
 
-## 自動起動
+## Cloudflare Tunnel
 
-Dockerの再起動ポリシーは`docker-compose.yml`で`unless-stopped`に設定されています。OS起動時にDockerサービスが起動するよう、Dockerの有効化を確認してください。
+- Public Hostname の Service は `http://tubejelly:3330`
+- LINE Webhook: `https://<公開ホスト名>/line/webhook`
+- Chrome拡張機能: `https://<公開ホスト名>`（`/ext/v1` を使用）
+- Bot Fight Mode などのセキュリティ設定で `/line/*`・`/ext/*` がブロックされないようにしてください
 
 ```bash
-sudo systemctl enable --now docker
+docker compose logs --tail=100 cloudflared
+curl https://<公開ホスト名>/line/health
+curl https://<公開ホスト名>/ext/v1/health
 ```
-
-## Cloudflare Tunnel運用時の注意
-
-Cloudflare Tunnelを使用する場合は、`CLOUDFLARED_TUNNEL_TOKEN`を`.env`へ設定し、Public HostnameのServiceを`http://tubejelly:3330`にします。Webhookの公開URLは`/line/webhook`で終わるようにしてください。

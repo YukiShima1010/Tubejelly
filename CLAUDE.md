@@ -41,5 +41,7 @@ pnpm package:extension # 拡張機能を release/tubejelly-extension-<version>.z
 
 ## 注意
 
-- `doc/` の一部（USAGE.md など）は `USERS_CONFIG_JSON` 環境変数に言及しているが、現行コードは `src/config/users.json` を読む。
+- ユーザー設定は `src/config/users.json`（Dockerイメージに焼き込まれる。変更時は再ビルド）。`DISCORD_TOKEN` は必須、LINEは2つの値が揃ったときのみ有効。
+- セットアップ手順を変えたら `setup.sh`（`--check`）と `doc/setup/GETTING_STARTED.md` も合わせて更新する。
+- Dockerfile は arm64 向け（Denoのダウンロード）。
 - Dockerコンテナは UID 1001 の `nodejs` ユーザーで動く。永続データは名前付きボリューム `tubejelly-data`（`/app/data`）。

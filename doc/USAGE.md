@@ -9,14 +9,12 @@ TubeJellyは、登録済みユーザーがDiscordまたはLINEからYouTubeのUR
 
 ## 1. 使い始める前に
 
-管理者に次のIDを登録してもらってください。
+管理者に次のIDを `src/config/users.json` へ登録してもらってください。登録方法は[セットアップガイド](setup/GETTING_STARTED.md#5-ユーザー登録usersjson)を参照してください。
 
-- Discord: Discord User ID
-- LINE: LINE User ID
+- Discord: DiscordのユーザーID（設定 → 詳細設定 → 開発者モードをオンにし、自分のアイコンを右クリック →「ユーザーIDをコピー」）
+- LINE: LINEのユーザーID（未登録の状態で公式アカウントにメッセージを送ると、管理者がサーバーのログで確認できます）
 
-登録内容は`.env`の`USERS_CONFIG_JSON`で管理します。ユーザーごとに`MUSIC_DL_DIR`と`VIDEO_DL_DIR`が割り当てられます。
-
-保存したファイルをJellyfinで認識させるには、Jellyfinのライブラリがホスト側の`MUSIC_HOST_PATH`と`VIDEO_HOST_PATH`を参照するように設定してください。
+ユーザーごとに音楽の保存先（`MUSIC_DL_DIR`）とMusicVideoの保存先（`VIDEO_DL_DIR`）が割り当てられます。
 
 ## 2. Discordの使い方
 
@@ -37,6 +35,9 @@ BotとのDM、またはBotが参加しているサーバーでスラッシュコ
 | `/artists list`   | アーティスト一覧を表示                       |
 | `/artists rename` | アーティスト名を一括変更                     |
 | `/help`           | Discordでのヘルプを表示                      |
+| `/link`           | Chrome拡張機能の連携コードを入力             |
+
+スラッシュコマンドを使わず、BotとのDM（またはBotが読めるチャンネル）にYouTubeのURLをそのまま送っても保存できます。本文に`動画`を含めるとMusicVideoになります。
 
 ### 音楽を1曲保存
 
@@ -139,7 +140,7 @@ https://www.youtube.com/playlist?list=xxxxxxxxxxx
 | コマンド                                      | 内容                             |
 | --------------------------------------------- | -------------------------------- |
 | `help`                                        | LINEコマンド一覧を表示           |
-| `id`                                          | 自分のLINE User IDを表示         |
+| `id`                                          | 自分のLINE User IDを表示（登録済みユーザーのみ） |
 | `list [page=1]`                               | 音楽一覧を10件ずつ表示           |
 | `add URL [title=] [artist=] [album=]`         | 音楽を1曲保存                    |
 | `add_list URL [artist=] [album=] [max=10]`    | プレイリストを音楽として一括保存 |

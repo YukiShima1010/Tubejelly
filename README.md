@@ -15,11 +15,11 @@
 
 _簡単に音楽をJellyfinのライブラリに追加_
 
-[セットアップガイド](./doc/setup/GETTING_STARTED.md) • [利用ガイド](./doc/USAGE.md) • [運用ガイド](./doc/RASPBERRY_PI_OPERATIONS.md) • [トラブルシューティング](./doc/TROUBLESHOOTING.md)
+[セットアップガイド](./doc/setup/GETTING_STARTED.md) • [利用ガイド](./doc/USAGE.md) • [Chrome拡張機能](./doc/EXTENSION.md) • [運用ガイド](./doc/RASPBERRY_PI_OPERATIONS.md) • [トラブルシューティング](./doc/TROUBLESHOOTING.md)
 
 </div>
 
-TubeJellyは、YouTube上に投稿されている音楽及びMusicVideoをDiscordまたはLINEで送信するだけで、Jellyfinのライブラリへ保存することのできるBot及びその機能を提供するシステムです。
+TubeJellyは、YouTube上に投稿されている音楽及びMusicVideoをDiscordまたはLINEで送信するだけで、Jellyfinのライブラリへ保存することのできるBot及びその機能を提供するシステムです。Chrome拡張機能を使えば、開いているYouTube動画をボタン1つで保存できます。
 
 なお、初期OSS公開バージョンは`3.0.0`です。
 
@@ -43,55 +43,50 @@ TubeJellyは、YouTube上に投稿されている音楽及びMusicVideoをDiscor
 
 ## セットアップ
 
-### 1. 必須環境
+詳しい手順（Discord Botの作り方、IDの調べ方、LINE・Cloudflare Tunnelの設定など）は **[セットアップガイド](./doc/setup/GETTING_STARTED.md)** にまとめています。ここでは流れだけを示します。
 
-- Node.js 22以上
-- pnpm 12以上
-- Jellyfin
-- ffmpeg
-- yt-dlp
-- Docker Compose v3
-- Discord Bot Token もしくは LINE Messaging APIのアクセストークン
-- 書き込み可能な音楽用・MusicVideo用ディレクトリ
+### 1. 必要なもの
+
+| 必要なもの | 備考 |
+| --- | --- |
+| arm64 の Linux（Raspberry Pi など） | Dockerfileは arm64 向け（x86_64 は[トラブルシューティング](./doc/TROUBLESHOOTING.md#ビルドに失敗するexec-format-error-など)参照） |
+| Docker Engine + Docker Compose v2 | `docker compose version` が動くこと。yt-dlp・ffmpeg・Node.js はイメージに含まれます |
+| Jellyfin | 音楽・MusicVideo用のライブラリディレクトリ |
+| Discord Bot | **必須**。MESSAGE CONTENT INTENT をオン |
+| LINE Messaging API チャネル | 任意 |
+| Cloudflare Tunnel | LINE・Chrome拡張機能を使う場合 |
 
 ### 2. クイックスタート
 
 ```bash
-# 1. プロジェクト用のディレクトリを作成し、移動
-mkdir tubejelly && cd tubejelly
+# 1. 取得
+git clone https://github.com/YukiShima1010/Tubejelly.git tubejelly
+cd tubejelly
 
-# 2. リポジトリをクローン
-git clone https://github.com/YukiShima1010/tubejelly.git .
+# 2. 保存先を docker-compose.yml の volumes に合わせて作成（コンテナは UID 1001 で動作）
+#    docker-compose.yml の volumes のホスト側パスも自分の環境に書き換える
+sudo mkdir -p /srv/jellyfin/music /srv/jellyfin/video
+sudo chown -R 1001:1001 /srv/jellyfin/music /srv/jellyfin/video
 
-# 3. .env.exampleをコピーして.envを作成
+# 3. ユーザー登録（DiscordのユーザーIDと、コンテナ側の保存先を設定）
+cp src/config/users.json.sample src/config/users.json
+nano src/config/users.json
+
+# 4. 環境変数（最低限 DISCORD_TOKEN）
 cp .env.example .env
-```
+nano .env
 
-### 3. .env設定
-
-```bash
-cp .env.example .env
-```
-
-envファイルを編集して、使う連携先と保存先を設定してください。
-
-その際、必ずDiscordとLINEのどちらか一方、もしくは両方を有効化してください。少なくとも一方は`true`にしてください。
-
-```dotenv
-DISCORD_ENABLED=true
-LINE_ENABLED=false
-```
-
-アクセストークンの取得方法については、[セットアップガイド](./doc/setup/GETTING_STARTED.md)を参照してください。
-
-### 4. 初期セットアップ＆起動
-
-```bash
+# 5. チェック・ビルド・起動
 ./setup.sh
-docker compose up --build -d
+docker compose up -d
+docker compose logs -f tubejelly
 ```
 
-実行後、`docker compose logs -f tubejelly`でログを確認できます。
+`./setup.sh` は、`.env`・`users.json`・`docker-compose.yml` の設定ミス（未設定のトークン、サンプルのままのID、存在しない・書き込めない保存先など）を見つけて直し方を表示します。チェックだけ行う場合は `./setup.sh --check` を使います。
+
+> [!IMPORTANT]
+> - `src/config/users.json` はDockerイメージに焼き込まれます。変更したら `docker compose up -d --build` で反映してください。
+> - `users.json` の `MUSIC_DL_DIR` / `VIDEO_DL_DIR` は、`docker-compose.yml` の volumes の**コンテナ側**のパス（`/music` など）を指定します。
 
 エラーが発生した場合は、[トラブルシューティング](./doc/TROUBLESHOOTING.md)を参照してください。
 
@@ -148,11 +143,12 @@ tubejelly/
 ├─ pnpm-workspace.yaml           # pnpmワークスペース設定
 ├─ scripts/
 │  └─ package-extension.sh      # Chrome拡張機能をZIPに出力
-├─ setup.sh                      # 環境変数・Docker Composeの事前検証とビルド
-├─ tsconfig.json                 # TypeScriptコンパイラー設定
+├─ setup.sh                      # 設定チェック（--check）とDockerイメージのビルド
+├─ tsconfig.json                 # TypeScriptコンパイラー設定（ビルド用）
+├─ tsconfig.test.json            # テストを含めた型チェック用の設定
 ├─ tubejelly.code-workspace      # VS Codeワークスペース定義
 └─ src/
-  ├─ index.ts                   # Discord BotとLINE Webhookの起動、イベント登録
+  ├─ index.ts                   # Discord Bot・HTTPサーバー（LINE/拡張機能API）の起動、イベント登録
   ├─ types.ts                   # ダウンロードやユーザー設定で共有する型定義
   ├─ commands/                  # Discordのスラッシュコマンド
   │  ├─ add.ts                  # YouTube動画を音楽として追加
@@ -167,20 +163,18 @@ tubejelly/
   │  ├─ videoDelete.ts          # MusicVideoファイルを削除
   │  └─ videoList.ts            # MusicVideoの一覧を表示
   ├─ config/
-  │  └─ runtime.ts              # 実行時の環境変数と連携機能の設定を読み込み
+  │  ├─ users.json.sample       # ユーザー設定のサンプル（users.json としてコピーして使う）
+  │  └─ users.json              # ユーザー設定（Git管理外。イメージに含まれる）
   ├─ extension/                # Chrome拡張機能API（連携コード・トークン・ジョブキュー）
   ├─ http/
   │  └─ server.ts               # LINE Webhookと拡張機能APIの共用HTTPサーバー
   ├─ line/
   │  └─ webhook.ts              # LINE Messaging APIのWebhook処理
-  └─ utils/                     # Discord・ダウンロード・ファイル操作の共通処理
-    ├─ discordDownloadMessage.ts # ダウンロード進捗をDiscordメッセージで通知
-    ├─ discordEmbeds.ts        # Discord Embedの生成
+  └─ utils/                     # ダウンロード・ファイル操作の共通処理
     ├─ download.ts             # yt-dlpによるURL解析・音楽と動画のダウンロード
     ├─ fileManager.ts          # ファイル一覧、存在確認、サイズや再生時間の取得
-    ├─ logger.ts               # pinoロガーの設定
     ├─ metadata.ts             # 音楽ファイルのメタデータ読み書き
-    └─ userConfig.ts           # ユーザー別の保存先と権限設定の管理
+    └─ userConfig.ts           # users.json からユーザー別の保存先を取得
 ```
 
 ---
@@ -192,30 +186,30 @@ tubejelly/
 | カテゴリ                   | 技術               | バージョン                                    |
 | -------------------------- | ------------------ | --------------------------------------------- |
 | **ランタイム**             | Node.js            | `>=22.0.0`（Docker: `node:22-bookworm-slim`） |
-| **言語**                   | TypeScript         | `5.9.3`                                       |
-| **Discord連携**            | discord.js         | `^14.27.0`                                    |
+| **言語**                   | TypeScript         | `6.0`                                         |
+| **Discord連携**            | discord.js         | `^14.28.1`                                    |
 | **LINE連携**               | LINE Messaging API | 外部API（SDKなし）                            |
+| **Chrome拡張機能**         | Manifest V3        | ビルド不要の素のJavaScript                    |
 | **モジュール形式**         | Node.js ESM        | `"type": "module"`                            |
-| **パッケージマネージャー** | pnpm               | `>=12.0.0`（固定: `12.4.1`）                  |
+| **パッケージマネージャー** | pnpm               | `>=12.0.0`（`packageManager`: `12.16.1`）     |
 
 ### ユーティリティ
 
 | 用途                   | ライブラリ     | バージョン |
 | ---------------------- | -------------- | ---------- |
-| **ロガー**             | pino           | `^10.3.1`  |
 | **ターミナル表示**     | chalk          | `^6.0.1`   |
-| **外部コマンド実行**   | execa          | `^10.0.1`  |
-| **音楽メタデータ解析** | music-metadata | `^11.16.1` |
+| **外部コマンド実行**   | execa          | `^10.2.1`  |
+| **音楽メタデータ解析** | music-metadata | `^12.7.0`  |
 | **ID3タグ編集**        | node-id3       | `^0.2.9`   |
-| **環境変数**           | dotenv         | `^18.0.4`  |
+| **環境変数**           | dotenv         | `^18.0.10` |
 
 ### インフラ
 
 | 技術                  | 用途                                                       |
 | --------------------- | ---------------------------------------------------------- |
-| **Docker**            | Node.js、ffmpeg、Python、yt-dlpを含むコンテナ化            |
+| **Docker**            | Node.js、ffmpeg、Python、yt-dlp、Denoを含むコンテナ化（arm64） |
 | **Docker Compose**    | TubeJelly本体とCloudflare Tunnelのマルチコンテナ管理       |
-| **Cloudflare Tunnel** | LINE Webhookを外部公開する任意のトンネル                   |
+| **Cloudflare Tunnel** | LINE WebhookとChrome拡張機能APIを外部公開                  |
 | **ffmpeg**            | 音声・動画の変換。Dockerイメージに導入                     |
 | **yt-dlp**            | YouTubeの動画情報取得とダウンロード。Dockerイメージに導入  |
 | **Jellyfin**          | ダウンロードした音楽・MusicVideoの保存先およびメディア管理 |
@@ -224,11 +218,12 @@ tubejelly/
 
 | 用途                  | ツール                                    | バージョン |
 | --------------------- | ----------------------------------------- | ---------- |
-| **静的解析**          | ESLint                                    | `^10.11.0` |
-| **TypeScript ESLint** | @typescript-eslint/parser / eslint-plugin | `^8.70.1`  |
-| **型定義**            | @types/node                               | `^26.6.3`  |
+| **静的解析**          | ESLint                                    | `^10.15.0` |
+| **TypeScript ESLint** | @typescript-eslint/parser / eslint-plugin | `^8.73.0`  |
+| **型定義**            | @types/node                               | `^26.6.6`  |
 | **開発実行**          | tsx                                       | `^4.23.15` |
-| **ビルド**            | TypeScript Compiler（`tsc`）              | `5.9.3`    |
+| **テスト**            | node:test（tsx経由）                      | Node.js標準 |
+| **ビルド**            | TypeScript Compiler（`tsc`）              | `6.0`      |
 
 ---
 
@@ -249,7 +244,7 @@ tubejelly/
 **YukiShima1010**
 
 - GitHub: [@YukiShima1010](https://github.com/YukiShima1010)
-- Repository: [TubeJelly](https://github.com/YukiShima1010/TubeJelly)
+- Repository: [TubeJelly](https://github.com/YukiShima1010/Tubejelly)
 
 <div align="center">
 

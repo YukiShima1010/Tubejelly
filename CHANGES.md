@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- `setup.sh` を作り直し、Docker Compose v2 に対応。`.env`・`users.json`・`docker-compose.yml` の volumes（存在・書き込み権限・保存先の一致）をチェックし、直し方を表示。`--check` でチェックのみ実行可能
+- `.env.example` を整理（LINE・Cloudflare の値を空に、使われていない `JELLYFIN_MUSIC_PATH` を削除）
+- セットアップガイド・README・利用ガイド・運用ガイド・トラブルシューティングを現在の動作に合わせて全面更新
+
 ## [3.1.0] - 2026-11-24
 
 ### Added
